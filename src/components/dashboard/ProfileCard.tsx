@@ -1,0 +1,60 @@
+import { FadeIn } from "@/components/motion/FadeIn";
+import { RoleBadge } from "./RoleBadge";
+import type { Session, UserProfile } from "@/lib/auth/types";
+import { getDisplayName } from "@/lib/auth/displayName";
+import { ROLE_META } from "@/lib/auth/constants";
+
+export function ProfileCard({
+  session,
+  profile,
+}: {
+  session: Session;
+  profile: UserProfile | null;
+}) {
+  const meta = ROLE_META[session.role];
+  const name = getDisplayName(session, profile);
+  const subline =
+    session.role === "DOCTOR" && profile?.doctorProfile
+      ? [profile.doctorProfile.degree, profile.doctorProfile.speciality]
+          .filter(Boolean)
+          .join(" · ") || profile.email
+      : (profile?.email ?? meta.tagline);
+
+  return (
+    <FadeIn delay={0.1}>
+      <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${meta.gradient} p-[1px] shadow-xl`}>
+        <div className="rounded-2xl bg-white/95 p-4 backdrop-blur sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+              <div
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${meta.gradient} text-xl text-white shadow-lg sm:h-14 sm:w-14 sm:text-2xl`}
+              >
+                {meta.emoji}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-base font-black text-slate-900 sm:text-lg">
+                  {name}
+                </p>
+                <p className="truncate text-xs text-slate-500 sm:text-sm">{subline}</p>
+              </div>
+            </div>
+            <RoleBadge role={session.role} />
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:mt-5 sm:gap-3 lg:grid-cols-4">
+            {[
+              ["ইউজার আইডি", session.userId.slice(0, 8) + "…"],
+              ["ভূমিকা", meta.label],
+              ["যাচাইকৃত", profile ? (profile.isVerified ? "হ্যাঁ ✓" : "না") : "—"],
+              ["যোগদান", profile ? new Date(profile.createdAt).toLocaleDateString("bn-BD") : "—"],
+            ].map(([k, v]) => (
+              <div key={k} className={`${meta.softBg} min-w-0 rounded-xl px-3 py-2`}>
+                <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{k}</dt>
+                <dd className={`truncate font-bold ${meta.accentText}`}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
