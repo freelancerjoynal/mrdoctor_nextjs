@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/auth/displayName";
@@ -5,6 +6,7 @@ import { ROLE_META } from "@/lib/auth/constants";
 import { ProfileCard } from "@/components/dashboard/ProfileCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
+import { DashboardCollections } from "./DashboardCollections";
 
 export default async function DashboardPage() {
   const data = await getProfile();
@@ -33,18 +35,77 @@ export default async function DashboardPage() {
 
       <ProfileCard session={session} profile={profile} />
 
-      {/* Stats */}
-      <section className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
-        {meta.stats.map((s, i) => (
-          <StatCard key={s.label} label={s.label} value={s.value} delta={s.delta} index={i} />
-        ))}
-      </section>
+      {/* Real collections replace the dummy stats for doctor roles */}
+      {(session.role === "DOCTOR" || session.role === "DOCTOR_STAFF") && (
+        <DashboardCollections isDoctor={session.role === "DOCTOR"} />
+      )}
 
-      {/* Actions */}
-      <section>
-        <h2 className="mb-3 text-base font-black text-slate-900 sm:text-lg">দ্রুত কাজ</h2>
-        <QuickActions actions={meta.actions} />
-      </section>
+      {/* Manage — doctor's admin panel (staff gets appointments only) */}
+      {(session.role === "DOCTOR" || session.role === "DOCTOR_STAFF") && (
+        <section>
+          <h2 className="mb-3 text-base font-black text-slate-900 sm:text-lg">পরিচালনা</h2>
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
+            <ManageLink
+              href="/dashboard/appointments"
+              emoji="📋"
+              label="অ্যাপয়েন্টমেন্ট প্যানেল"
+              hint="আজকের তালিকা, পেন্ডিং অনুরোধ ও কালেকশন"
+            />
+            <ManageLink
+              href="/dashboard/collection"
+              emoji="🗓️"
+              label="কাস্টম কালেকশন"
+              hint="তারিখ বেছে আয় দেখুন"
+            />
+            {session.role === "DOCTOR" && (
+              <>
+                <ManageLink
+                  href="/dashboard/blogs"
+                  emoji="✍️"
+                  label="ব্লগ ব্যবস্থাপনা"
+                  hint="নতুন ব্লগ, সম্পাদনা ও প্রকাশ"
+                />
+                <ManageLink
+                  href="/dashboard/staff"
+                  emoji="🧑‍⚕️"
+                  label="স্টাফ ব্যবস্থাপনা"
+                  hint="ইমেইলে স্টাফ যোগ করুন"
+                />
+              </>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Stats + quick actions stay only for non-doctor roles */}
+      {session.role !== "DOCTOR" && session.role !== "DOCTOR_STAFF" && (
+        <>
+          <section className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
+            {meta.stats.map((s, i) => (
+              <StatCard key={s.label} label={s.label} value={s.value} delta={s.delta} index={i} />
+            ))}
+          </section>
+          <section>
+            <h2 className="mb-3 text-base font-black text-slate-900 sm:text-lg">দ্রুত কাজ</h2>
+            <QuickActions actions={meta.actions} />
+          </section>
+        </>
+      )}
     </div>
+  );
+}
+
+function ManageLink({ href, emoji, label, hint }: { href: string; emoji: string; label: string; hint: string }) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-2xl bg-white p-5 text-left shadow-xl shadow-slate-900/5 ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-2xl"
+    >
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 text-lg shadow-lg transition group-hover:scale-110">
+        {emoji}
+      </div>
+      <p className="font-bold text-slate-900">{label}</p>
+      <p className="text-sm text-slate-500">{hint}</p>
+    </Link>
   );
 }
