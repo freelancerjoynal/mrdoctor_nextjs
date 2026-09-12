@@ -1,4 +1,5 @@
-import type { PublicHospital } from "@/lib/profile";
+import type { PublicHospital, PublicReview } from "@/lib/profile";
+import { ReviewSection } from "@/components/reviews";
 
 /** Hospital profile template — rendered at `<slug>.domain.com`. */
 export function HospitalSite({ hospital }: { hospital: PublicHospital }) {
@@ -6,6 +7,7 @@ export function HospitalSite({ hospital }: { hospital: PublicHospital }) {
     .map((c) => c.doctor)
     .filter((d): d is NonNullable<typeof d> => Boolean(d));
   const uniqueDoctors = [...new Map(doctors.map((d) => [d.username, d])).values()];
+  const hospitalReviews: PublicReview[] = Array.isArray(hospital.reviews) ? hospital.reviews : [];
 
   return (
     <div className="min-h-screen bg-indigo-50 text-slate-900">
@@ -75,6 +77,14 @@ export function HospitalSite({ hospital }: { hospital: PublicHospital }) {
             </ul>
           </section>
         )}
+
+        <ReviewSection
+          target={{ type: "hospital", slug: hospital.slug }}
+          reviews={hospitalReviews}
+          rating={hospital.rating ?? null}
+          eyebrow="রোগীদের মতামত"
+          heading="আমাদের সেবা সম্পর্কে"
+        />
       </main>
     </div>
   );

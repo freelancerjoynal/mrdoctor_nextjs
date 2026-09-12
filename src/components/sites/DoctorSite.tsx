@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import type { PublicBlog, PublicDoctor } from "@/lib/profile";
+import type { PublicBlog, PublicDoctor, PublicReview } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { doctorDemo } from "./doctorDemo";
 import { SerialSection } from "./SerialSection";
 import { BlogSection } from "@/components/blog";
+import { ReviewSection } from "@/components/reviews";
 
 /**
  * Personal-website template for a doctor — served at `<username>.domain.com`.
@@ -104,6 +105,32 @@ export function DoctorSite({
 
   // Shared WhatsApp contact — global number, never a personal one.
   const waDisplay = toBn(waNumber);
+
+  // Dynamic "রোগীদের মতামত" — reviews table (APPROVED), fallback to demo.
+  const rawReviews = doctor?.reviews;
+  const reviewList: PublicReview[] = Array.isArray(rawReviews)
+    ? rawReviews.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        reviewerName: r.reviewerName,
+        title: r.title,
+        comment: r.comment,
+        createdAt: r.createdAt,
+      }))
+    : [];
+  const reviewFallback: PublicReview[] = doctorDemo.testimonials.map((t, i) => ({
+    id: `demo-t-${i}`,
+    rating: 5,
+    reviewerName: t.name,
+    title: null,
+    comment: t.quote,
+    createdAt: null,
+  }));
+  const ratingSummary = doctor?.rating ?? null;
+  const heroRating =
+    ratingSummary && ratingSummary.count > 0
+      ? toBn(ratingSummary.average.toFixed(1))
+      : doctorDemo.rating;
 
   // Hero portrait + logos: DB profile picture, else gender-based avatar.
   const portrait = doctorPortrait(doctor?.profilePicture, doctor?.gender);
@@ -310,7 +337,7 @@ export function DoctorSite({
               <p className="text-[11px] font-semibold">বছরের অভিজ্ঞতা</p>
             </div>
             <div className="absolute -left-3 bottom-24 rounded-2xl bg-white px-4 py-2.5 text-emerald-950 shadow-xl">
-              <p className="text-sm font-bold text-amber-500">★★★★★ {doctorDemo.rating}</p>
+              <p className="text-sm font-bold text-amber-500">★★★★★ {heroRating}</p>
               <p className="text-[11px] font-medium text-slate-500">রোগীদের রেটিং</p>
             </div>
           </div>
@@ -592,35 +619,15 @@ export function DoctorSite({
       {/* ---------- Blog (DB-driven, modular components) ---------- */}
       <BlogSection posts={blogPosts} />
 
-      {/* ---------- Testimonials ---------- */}
-      <section id="testimonials" className="scroll-mt-24 bg-emerald-950 text-white">
-        <div className="mx-auto max-w-6xl px-5 py-16 md:py-20">
-          <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">
-            <span className="inline-block h-px w-10 bg-amber-300" />
-            রোগীদের মতামত
-          </p>
-          <h2 className="mt-3 text-3xl font-bold md:text-4xl">যাঁরা আস্থা রেখেছেন</h2>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {doctorDemo.testimonials.map((t) => (
-              <figure
-                key={t.name}
-                className="rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur transition hover:bg-white/10"
-              >
-                <p className="text-sm font-bold tracking-widest text-amber-400">★★★★★</p>
-                <blockquote className="mt-3 leading-relaxed text-emerald-50/90">
-                  “{t.quote}”
-                </blockquote>
-                <figcaption className="mt-5 flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400 font-bold text-emerald-950">
-                    {t.name[0]}
-                  </span>
-                  <span className="font-semibold text-emerald-50">{t.name}</span>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ---------- Testimonials (DB-driven, modular components) ---------- */}
+      <ReviewSection
+        target={{ type: "doctor", username: doctor?.username || "demo" }}
+        reviews={reviewList}
+        rating={ratingSummary}
+        fallback={reviewFallback}
+        showForm={!!doctor}
+        dark
+      />
 
       {/* ---------- Contact ---------- */}
       <section id="contact" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 md:py-20">

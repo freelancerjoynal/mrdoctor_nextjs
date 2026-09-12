@@ -45,6 +45,20 @@ export interface PublicBlog {
   views: number;
 }
 
+export interface PublicReview {
+  id: string;
+  rating: number;
+  reviewerName: string;
+  title?: string | null;
+  comment: string;
+  createdAt?: string | null;
+}
+
+export interface RatingSummary {
+  average: number;
+  count: number;
+}
+
 export interface PublicDoctor {
   username: string;
   name: string;
@@ -61,6 +75,8 @@ export interface PublicDoctor {
     timeline: DoctorTimelineItem[];
   } | null;
   blogs?: PublicBlog[] | null;
+  reviews?: PublicReview[] | null;
+  rating?: RatingSummary | null;
   chambers: Array<{
     id: string;
     chamberName?: string | null;
@@ -87,6 +103,8 @@ export interface PublicHospital {
   phone?: string | null;
   establishedYear?: number | null;
   templateName?: string | null;
+  reviews?: PublicReview[] | null;
+  rating?: RatingSummary | null;
   chambers: Array<{
     id: string;
     chamberName?: string | null;
