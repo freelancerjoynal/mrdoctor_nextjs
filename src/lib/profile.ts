@@ -29,6 +29,22 @@ export interface DoctorTimelineItem {
   title: string;
 }
 
+export interface PublicBlog {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt?: string | null;
+  content?: string | null;
+  coverImage?: string | null;
+  coverGradient: string;
+  coverSymbol: string;
+  category: string;
+  tags: string[];
+  authorName?: string | null;
+  publishedAt?: string | null;
+  views: number;
+}
+
 export interface PublicDoctor {
   username: string;
   name: string;
@@ -44,6 +60,7 @@ export interface PublicDoctor {
     expertise: DoctorExpertiseItem[];
     timeline: DoctorTimelineItem[];
   } | null;
+  blogs?: PublicBlog[] | null;
   chambers: Array<{
     id: string;
     chamberName?: string | null;

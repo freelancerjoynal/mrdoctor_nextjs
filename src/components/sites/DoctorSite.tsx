@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import type { PublicDoctor } from "@/lib/profile";
+import type { PublicBlog, PublicDoctor } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { doctorDemo } from "./doctorDemo";
 import { SerialSection } from "./SerialSection";
+import { BlogSection } from "@/components/blog";
 
 /**
  * Personal-website template for a doctor — served at `<username>.domain.com`.
@@ -64,6 +65,42 @@ export function DoctorSite({
           .filter((t) => t && typeof t.year === "string" && typeof t.title === "string")
           .map((t) => ({ year: t.year, title: t.title }))
       : doctorDemo.qualifications;
+
+  // Dynamic "স্বাস্থ্য নিয়ে কিছু জরুরি কথা" — blogs table (own PUBLISHED posts).
+  // Falls back to static demo posts so the section never looks empty.
+  const rawBlogs = doctor?.blogs;
+  const blogPosts: PublicBlog[] =
+    Array.isArray(rawBlogs) && rawBlogs.length > 0
+      ? rawBlogs.map((b) => ({
+          id: b.id,
+          slug: b.slug,
+          title: b.title,
+          excerpt: b.excerpt,
+          content: b.content,
+          coverImage: b.coverImage,
+          coverGradient: b.coverGradient || "from-emerald-500 to-teal-700",
+          coverSymbol: b.coverSymbol || "✿",
+          category: b.category || "স্বাস্থ্য টিপস",
+          tags: Array.isArray(b.tags) ? b.tags : [],
+          authorName: b.authorName,
+          publishedAt: b.publishedAt,
+          views: b.views ?? 0,
+        }))
+      : doctorDemo.posts.map((p, i) => ({
+          id: `demo-${i}`,
+          slug: `demo-${i}`,
+          title: p.title,
+          excerpt: p.excerpt,
+          content: p.excerpt,
+          coverImage: null,
+          coverGradient: p.gradient,
+          coverSymbol: p.symbol,
+          category: "স্বাস্থ্য টিপস",
+          tags: [],
+          authorName: null,
+          publishedAt: null,
+          views: 0,
+        }));
 
   // Shared WhatsApp contact — global number, never a personal one.
   const waDisplay = toBn(waNumber);
@@ -552,40 +589,8 @@ export function DoctorSite({
         </div>
       </section>
 
-      {/* ---------- Blog ---------- */}
-      <section id="blog" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 md:py-20">
-        <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-          <span className="inline-block h-px w-10 bg-emerald-600" />
-          ব্লগ
-        </p>
-        <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
-          স্বাস্থ্য নিয়ে কিছু জরুরি কথা
-        </h2>
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {doctorDemo.posts.map((p) => (
-            <article
-              key={p.title}
-              className="group overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-1.5 hover:shadow-xl"
-            >
-              <div
-                className={`relative flex h-44 items-center justify-center overflow-hidden bg-gradient-to-br text-6xl text-white/90 ${p.gradient}`}
-              >
-                <span className="transition group-hover:scale-110">{p.symbol}</span>
-                <span className="absolute left-4 top-4 rounded-full bg-black/30 px-3 py-1 text-xs font-semibold text-white">
-                  স্বাস্থ্য টিপস
-                </span>
-              </div>
-              <div className="p-6">
-                <h3 className="text-lg font-bold leading-snug text-emerald-950">{p.title}</h3>
-                <p className="mt-2 text-[15px] text-slate-600">{p.excerpt}</p>
-                <span className="mt-4 inline-block font-bold text-emerald-700 group-hover:text-emerald-900">
-                  বিস্তারিত পড়ুন →
-                </span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      {/* ---------- Blog (DB-driven, modular components) ---------- */}
+      <BlogSection posts={blogPosts} />
 
       {/* ---------- Testimonials ---------- */}
       <section id="testimonials" className="scroll-mt-24 bg-emerald-950 text-white">
