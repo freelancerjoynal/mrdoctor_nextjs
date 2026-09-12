@@ -41,6 +41,30 @@ export function DoctorSite({
   const dbChambers = doctor && doctor.chambers.length > 0 ? doctor.chambers : null;
   const chamberCount = dbChambers ? dbChambers.length : doctorDemo.chambers.length;
 
+  // Dynamic "আমি যেসব চিকিৎসা সক্রিয়ভাবে করি" — doctor_informations.expertise
+  // [{ icon, service, service_details }], fallback to static demo when empty.
+  const rawExpertise = doctor?.information?.expertise;
+  const services =
+    Array.isArray(rawExpertise) && rawExpertise.length > 0
+      ? rawExpertise
+          .filter((e) => e && typeof e.service === "string" && typeof e.service_details === "string")
+          .map((e) => ({
+            icon: typeof e.icon === "string" && e.icon ? e.icon : "✚",
+            title: e.service,
+            desc: e.service_details,
+          }))
+      : doctorDemo.services;
+
+  // Dynamic "যোগ্যতা ও অভিজ্ঞতা" timeline — doctor_informations.timeline
+  // [{ year, title }], unbounded length, fallback to static demo when empty.
+  const rawTimeline = doctor?.information?.timeline;
+  const qualifications =
+    Array.isArray(rawTimeline) && rawTimeline.length > 0
+      ? rawTimeline
+          .filter((t) => t && typeof t.year === "string" && typeof t.title === "string")
+          .map((t) => ({ year: t.year, title: t.title }))
+      : doctorDemo.qualifications;
+
   // Shared WhatsApp contact — global number, never a personal one.
   const waDisplay = toBn(waNumber);
 
@@ -316,7 +340,7 @@ export function DoctorSite({
             </a>
           </div>
           <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {doctorDemo.services.map((s, i) => (
+            {services.map((s, i) => (
               <div
                 key={s.title}
                 className="group rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-1.5 hover:shadow-xl"
@@ -517,7 +541,7 @@ export function DoctorSite({
             একটি দীর্ঘ পথের প্রতিফলন
           </h2>
           <ol className="mt-10 space-y-2 border-l-2 border-amber-300 pl-0">
-            {doctorDemo.qualifications.map((q) => (
+            {qualifications.map((q) => (
               <li key={q.title} className="relative pb-8 pl-10 last:pb-0">
                 <span className="absolute -left-[9px] top-1 h-4 w-4 rounded-full border-[3px] border-amber-300 bg-emerald-800" />
                 <p className="text-sm font-bold text-amber-600">{q.year}</p>

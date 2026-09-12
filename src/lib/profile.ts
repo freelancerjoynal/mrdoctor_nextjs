@@ -18,6 +18,17 @@ export function doctorPortrait(
   return profilePicture || fallbackAvatar(gender);
 }
 
+export interface DoctorExpertiseItem {
+  icon: string;
+  service: string;
+  service_details: string;
+}
+
+export interface DoctorTimelineItem {
+  year: string;
+  title: string;
+}
+
 export interface PublicDoctor {
   username: string;
   name: string;
@@ -29,6 +40,10 @@ export interface PublicDoctor {
   templateName?: string | null;
   profilePicture?: string | null;
   gender?: "MALE" | "FEMALE" | null;
+  information?: {
+    expertise: DoctorExpertiseItem[];
+    timeline: DoctorTimelineItem[];
+  } | null;
   chambers: Array<{
     id: string;
     chamberName?: string | null;
