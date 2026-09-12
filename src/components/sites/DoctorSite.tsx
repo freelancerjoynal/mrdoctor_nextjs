@@ -4,6 +4,7 @@ import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import type { PublicDoctor } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
+import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { doctorDemo } from "./doctorDemo";
 import { SerialSection } from "./SerialSection";
 
@@ -16,13 +17,11 @@ import { SerialSection } from "./SerialSection";
 export function DoctorSite({
   doctor,
   serialHref,
-  username,
   waNumber,
   waHref,
 }: {
   doctor: PublicDoctor | null;
   serialHref: string;
-  username: string;
   waNumber: string;
   waHref: string;
 }) {
@@ -45,18 +44,15 @@ export function DoctorSite({
   // Shared WhatsApp contact — global number, never a personal one.
   const waDisplay = toBn(waNumber);
 
+  // Hero portrait + logos: DB profile picture, else gender-based avatar.
+  const portrait = doctorPortrait(doctor?.profilePicture, doctor?.gender);
+  const avatarFallback = fallbackAvatar(doctor?.gender);
+
   const degreeChips = degree
     .split(",")
     .map((d) => d.trim())
     .filter(Boolean)
     .slice(0, 4);
-
-  const initials = name
-    .replace(/^ডা\.\s*/, "")
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("");
 
   const nav = [
     { href: "#home", label: "পরিচিতি" },
@@ -89,9 +85,17 @@ export function DoctorSite({
       <header className="sticky top-0 z-50 border-b border-emerald-900/10 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
           <a href="#home" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-800 text-lg font-bold text-amber-300">
-              {initials}
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo may be any external doctor-uploaded URL */}
+            <img
+              src={portrait}
+              alt={name}
+              className="h-11 w-11 rounded-xl object-cover ring-1 ring-emerald-900/15"
+              onError={(e) => {
+                if (!e.currentTarget.src.endsWith(avatarFallback)) {
+                  e.currentTarget.src = avatarFallback;
+                }
+              }}
+            />
             <span className="leading-tight">
               <span className="block font-bold text-emerald-950">{name}</span>
               <span className="block text-xs text-slate-500">{degree}</span>
@@ -169,9 +173,9 @@ export function DoctorSite({
               {speciality}
             </p>
             <h1 className="mt-4 text-4xl font-bold leading-tight md:text-6xl">{name}</h1>
-            <p className="mt-3 text-xl font-medium text-emerald-100 md:text-2xl">{tagline}</p>
+            <p className="mt-3 text-xl font-medium text-emerald-100 md:text-2xl">{speciality}</p>
             <p className="mt-4 max-w-xl leading-relaxed text-emerald-100/80">
-              {doctorDemo.heroIntro}
+              {tagline}
             </p>
             {degreeChips.length > 0 && (
               <div className="mt-5 flex flex-wrap gap-2">
@@ -221,10 +225,18 @@ export function DoctorSite({
           {/* Portrait card */}
           <div className="relative mx-auto w-full max-w-sm">
             <div className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900 shadow-2xl ring-1 ring-white/20">
-              <div className="flex h-80 items-center justify-center">
-                <span className="flex h-44 w-44 items-center justify-center rounded-full bg-white/10 text-6xl font-bold text-amber-300 ring-2 ring-amber-300/60">
-                  {initials}
-                </span>
+              <div className="flex h-80 items-center justify-center overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element -- portrait may be any external doctor-uploaded URL */}
+                <img
+                  src={portrait}
+                  alt={name}
+                  className="h-full w-full object-cover"
+              onError={(e) => {
+                if (!e.currentTarget.src.endsWith(avatarFallback)) {
+                  e.currentTarget.src = avatarFallback;
+                }
+              }}
+                />
               </div>
               <div className="border-t border-white/15 bg-black/25 px-6 py-5">
                 <p className="text-lg font-bold">{name}</p>
@@ -491,15 +503,8 @@ export function DoctorSite({
         </div>
       </section>
 
-      {/* ---------- Online serial (QR + form → pendingAppointment) ---------- */}
-      <SerialSection
-        username={username}
-        serialHref={serialHref}
-        chambers={(doctor?.chambers ?? []).map((c) => ({
-          id: c.id,
-          name: c.chamberName || c.hospital?.name || c.addressLine,
-        }))}
-      />
+      {/* ---------- Serial (static QR + WhatsApp) ---------- */}
+      <SerialSection serialHref={serialHref} waHref={waHref} />
 
       {/* ---------- Qualifications ---------- */}
       <section id="qualifications" className="scroll-mt-24 bg-stone-50">
@@ -646,9 +651,17 @@ export function DoctorSite({
       <footer className="bg-emerald-950 text-emerald-100">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-10 text-center md:flex-row md:text-left">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-lg font-bold text-amber-300">
-              {initials}
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo may be any external doctor-uploaded URL */}
+            <img
+              src={portrait}
+              alt={name}
+              className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/20"
+              onError={(e) => {
+                if (!e.currentTarget.src.endsWith(avatarFallback)) {
+                  e.currentTarget.src = avatarFallback;
+                }
+              }}
+            />
             <div className="leading-tight">
               <p className="font-bold text-white">{name}</p>
               <p className="text-xs text-emerald-100/70">{doctorDemo.footerLine}</p>

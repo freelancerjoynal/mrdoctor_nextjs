@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { resolveProfile } from "@/lib/profile";
+import { doctorPortrait, fallbackAvatar, resolveProfile } from "@/lib/profile";
 import { buildSerialUrl, buildWaHref } from "@/lib/serial";
 import { DoctorSite } from "@/components/sites/DoctorSite";
 import { HospitalSite } from "@/components/sites/HospitalSite";
@@ -23,18 +23,22 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { subdomain } = await params;
   const profile = await resolveProfile(subdomain);
+  // Favicon: DB profile picture, else the gender-appropriate bundled avatar.
+  const demoIcon = { icon: fallbackAvatar(null) };
   // No database record (yet) → static demo personal site, so every
   // subdomain still feels like a complete individual website.
   if (!profile)
     return {
       title: `${doctorDemo.name} — ${doctorDemo.speciality}`,
       description: doctorDemo.heroIntro.slice(0, 150),
+      icons: demoIcon,
     };
   if (profile.type === "doctor") {
     const d = profile.data;
     return {
       title: `${d.name} — ${d.speciality}`,
       description: d.tagline || d.bio?.slice(0, 150) || `${d.name}, ${d.degree}`,
+      icons: { icon: doctorPortrait(d.profilePicture, d.gender) },
     };
   }
   const h = profile.data;
@@ -62,7 +66,6 @@ export default async function SubdomainSitePage({
     return (
       <DoctorSite
         doctor={null}
-        username={username}
         serialHref={buildSerialUrl(serialBase, username)}
         waNumber={waNumber}
         waHref={buildWaHref(waNumber, username)}
@@ -75,7 +78,6 @@ export default async function SubdomainSitePage({
     return (
       <DoctorSite
         doctor={profile.data}
-        username={username}
         serialHref={buildSerialUrl(serialBase, username)}
         waNumber={waNumber}
         waHref={buildWaHref(waNumber, username)}

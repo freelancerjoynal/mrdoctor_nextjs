@@ -2,6 +2,22 @@
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
+export const DEFAULT_AVATAR = "/images/doctor_avatar.jpg";
+export const FEMALE_AVATAR = "/images/doctor_avatar_female.jpg";
+
+/** Bundled fallback portrait by gender (female → female avatar, else default). */
+export function fallbackAvatar(gender?: "MALE" | "FEMALE" | null): string {
+  return gender === "FEMALE" ? FEMALE_AVATAR : DEFAULT_AVATAR;
+}
+
+/** DB profile picture, else the gender-appropriate bundled avatar. */
+export function doctorPortrait(
+  profilePicture?: string | null,
+  gender?: "MALE" | "FEMALE" | null,
+): string {
+  return profilePicture || fallbackAvatar(gender);
+}
+
 export interface PublicDoctor {
   username: string;
   name: string;
@@ -11,6 +27,8 @@ export interface PublicDoctor {
   bio?: string | null;
   startedYear?: number | null;
   templateName?: string | null;
+  profilePicture?: string | null;
+  gender?: "MALE" | "FEMALE" | null;
   chambers: Array<{
     id: string;
     chamberName?: string | null;
