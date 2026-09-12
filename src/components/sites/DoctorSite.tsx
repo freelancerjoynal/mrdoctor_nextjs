@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
+import { Reveal } from "@/components/motion";
 import type { PublicBlog, PublicDoctor, PublicReview } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
+import { dayEnToBn } from "@/lib/days";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { doctorDemo } from "./doctorDemo";
 import { SerialSection } from "./SerialSection";
@@ -214,28 +217,38 @@ export function DoctorSite({
             </button>
           </div>
         </div>
-        {menuOpen && (
-          <nav className="border-t border-emerald-900/10 bg-white px-5 py-3 lg:hidden">
-            {nav.map((n) => (
-              <a
-                key={n.href}
-                href={n.href}
-                onClick={() => setMenuOpen(false)}
-                className="block border-b border-slate-50 py-2.5 font-medium text-slate-700 last:border-0 hover:text-emerald-700"
-              >
-                {n.label}
-              </a>
-            ))}
-            <a
-              href={serialHref}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 block rounded-full bg-emerald-700 px-5 py-2.5 text-center text-sm font-semibold text-white"
+        <AnimatePresence initial={false}>
+          {menuOpen && (
+            <motion.nav
+              className="overflow-hidden border-t border-emerald-900/10 bg-white px-5 lg:hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
             >
-              ✆ সিরিয়াল নিন
-            </a>
-          </nav>
-        )}
+              <div className="py-3">
+                {nav.map((n) => (
+                  <a
+                    key={n.href}
+                    href={n.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="block border-b border-slate-50 py-2.5 font-medium text-slate-700 last:border-0 hover:text-emerald-700"
+                  >
+                    {n.label}
+                  </a>
+                ))}
+                <a
+                  href={serialHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 block rounded-full bg-emerald-700 px-5 py-2.5 text-center text-sm font-semibold text-white"
+                >
+                  ✆ সিরিয়াল নিন
+                </a>
+              </div>
+            </motion.nav>
+          )}
+        </AnimatePresence>
       </header>
 
       {/* ---------- Hero ---------- */}
@@ -255,7 +268,11 @@ export function DoctorSite({
         <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-teal-600/30 blur-3xl" />
 
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 md:grid-cols-[1.15fr_0.85fr] md:py-24">
-          <div>
+          <motion.div
+            initial={{ opacity: 0, x: -28 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+          >
             <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">
               <span className="inline-block h-px w-10 bg-amber-300" />
               {speciality}
@@ -308,10 +325,15 @@ export function DoctorSite({
                 </div>
               ))}
             </dl>
-          </div>
+          </motion.div>
 
           {/* Portrait card */}
-          <div className="relative mx-auto w-full max-w-sm">
+          <motion.div
+            className="relative mx-auto w-full max-w-sm"
+            initial={{ opacity: 0, scale: 0.94, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+          >
             <div className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900 shadow-2xl ring-1 ring-white/20">
               <div className="flex h-80 items-center justify-center overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element -- portrait may be any external doctor-uploaded URL */}
@@ -338,15 +360,16 @@ export function DoctorSite({
             </div>
             <div className="absolute -left-3 bottom-24 rounded-2xl bg-white px-4 py-2.5 text-emerald-950 shadow-xl">
               <p className="text-sm font-bold text-amber-500">★★★★★ {heroRating}</p>
-              <p className="text-[11px] font-medium text-slate-500">রোগীদের রেটিং</p>
+              <p className="mt-0.5 text-[11px] font-medium text-slate-500">রোগীদের রেটিং</p>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ---------- About ---------- */}
       <section className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 md:py-20">
-        <div className="grid gap-10 md:grid-cols-[1fr_1.2fr]">
+        <Reveal>
+          <div className="grid gap-10 md:grid-cols-[1fr_1.2fr]">
           <div>
             <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
               <span className="inline-block h-px w-10 bg-emerald-600" />
@@ -385,29 +408,42 @@ export function DoctorSite({
               ))}
             </ul>
           </div>
-        </div>
+          </div>
+        </Reveal>
       </section>
 
       {/* ---------- Services ---------- */}
       <section id="services" className="scroll-mt-24 bg-stone-50">
         <div className="mx-auto max-w-6xl px-5 py-16 md:py-20">
-          <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-            <span className="inline-block h-px w-10 bg-emerald-600" />
-            সেবাসমূহ
-          </p>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-            <h2 className="max-w-xl text-3xl font-bold text-emerald-950 md:text-4xl">
-              আমি যেসব চিকিৎসা সক্রিয়ভাবে করি
-            </h2>
-            <a href={serialHref} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700 hover:text-emerald-900">
-              পরামর্শ নিন →
-            </a>
-          </div>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
+          <Reveal>
+            <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
+              <span className="inline-block h-px w-10 bg-emerald-600" />
+              সেবাসমূহ
+            </p>
+            <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+              <h2 className="max-w-xl text-3xl font-bold text-emerald-950 md:text-4xl">
+                আমি যেসব চিকিৎসা সক্রিয়ভাবে করি
+              </h2>
+              <a href={serialHref} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700 hover:text-emerald-900">
+                পরামর্শ নিন →
+              </a>
+            </div>
+          </Reveal>
+          <motion.div
+            className="mt-10 grid gap-5 md:grid-cols-3"
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-40px" }}
+            variants={{ show: { transition: { staggerChildren: 0.1 } } }}
+          >
             {services.map((s, i) => (
-              <div
+              <motion.div
                 key={s.title}
                 className="group rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-1.5 hover:shadow-xl"
+                variants={{
+                  hidden: { opacity: 0, y: 24 },
+                  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } },
+                }}
               >
                 <div className="flex items-center justify-between">
                   <div
@@ -427,28 +463,30 @@ export function DoctorSite({
                 </div>
                 <h3 className="mt-5 text-xl font-bold text-emerald-950">{s.title}</h3>
                 <p className="mt-2 leading-relaxed text-slate-600">{s.desc}</p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ---------- Chambers ---------- */}
       <section id="chambers" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 md:py-20">
-        <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-          <span className="inline-block h-px w-10 bg-emerald-600" />
-          চেম্বার
-        </p>
-        <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
-          যেখানে আমাকে পাওয়া যাবে
-        </h2>
+        <Reveal>
+          <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
+            <span className="inline-block h-px w-10 bg-emerald-600" />
+            চেম্বার
+          </p>
+          <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
+            যেখানে আমাকে পাওয়া যাবে
+          </h2>
+        </Reveal>
         <div className="mt-10 grid items-start gap-6 lg:grid-cols-2">
           {dbChambers
             ? dbChambers.map((c) => {
                 const slots = (doctor?.schedules ?? [])
                   .filter((s) => s.chamber?.id === c.id)
                   .map((s) => ({
-                    days: s.dayOfWeek,
+                    days: dayEnToBn(s.dayOfWeek),
                     time: `${s.startTime}–${s.endTime}${s.chamber?.chamberName ? ` (${s.chamber.chamberName})` : ""}`,
                   }));
                 return (
@@ -591,28 +629,47 @@ export function DoctorSite({
         </div>
       </section>
 
-      {/* ---------- Serial (static QR + WhatsApp) ---------- */}
-      <SerialSection serialHref={serialHref} waHref={waHref} />
+      {/* ---------- Serial (online booking form + QR + WhatsApp) ---------- */}
+      <SerialSection
+        serialHref={serialHref}
+        waHref={waHref}
+        doctorUsername={doctor?.username ?? null}
+      />
 
       {/* ---------- Qualifications ---------- */}
       <section id="qualifications" className="scroll-mt-24 bg-stone-50">
         <div className="mx-auto max-w-4xl px-5 py-16 md:py-20">
-          <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-            <span className="inline-block h-px w-10 bg-emerald-600" />
-            যোগ্যতা ও অভিজ্ঞতা
-          </p>
-          <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
-            একটি দীর্ঘ পথের প্রতিফলন
-          </h2>
-          <ol className="mt-10 space-y-2 border-l-2 border-amber-300 pl-0">
+          <Reveal>
+            <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
+              <span className="inline-block h-px w-10 bg-emerald-600" />
+              যোগ্যতা ও অভিজ্ঞতা
+            </p>
+            <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
+              একটি দীর্ঘ পথের প্রতিফলন
+            </h2>
+          </Reveal>
+          <motion.ol
+            className="mt-10 space-y-2 border-l-2 border-amber-300 pl-0"
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-40px" }}
+            variants={{ show: { transition: { staggerChildren: 0.08 } } }}
+          >
             {qualifications.map((q) => (
-              <li key={q.title} className="relative pb-8 pl-10 last:pb-0">
+              <motion.li
+                key={q.title}
+                className="relative pb-8 pl-10 last:pb-0"
+                variants={{
+                  hidden: { opacity: 0, x: -16 },
+                  show: { opacity: 1, x: 0, transition: { duration: 0.4, ease: "easeOut" } },
+                }}
+              >
                 <span className="absolute -left-[9px] top-1 h-4 w-4 rounded-full border-[3px] border-amber-300 bg-emerald-800" />
                 <p className="text-sm font-bold text-amber-600">{q.year}</p>
                 <p className="mt-0.5 text-lg font-medium text-slate-800">{q.title}</p>
-              </li>
+              </motion.li>
             ))}
-          </ol>
+          </motion.ol>
         </div>
       </section>
 
@@ -631,13 +688,15 @@ export function DoctorSite({
 
       {/* ---------- Contact ---------- */}
       <section id="contact" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 md:py-20">
-        <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-          <span className="inline-block h-px w-10 bg-emerald-600" />
-          যোগাযোগ
-        </p>
-        <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
-          নিঃসংকোচে যোগাযোগ করুন
-        </h2>
+        <Reveal>
+          <p className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
+            <span className="inline-block h-px w-10 bg-emerald-600" />
+            যোগাযোগ
+          </p>
+          <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
+            নিঃসংকোচে যোগাযোগ করুন
+          </h2>
+        </Reveal>
         <div className="mt-10 grid gap-5 md:grid-cols-3">
           <a
             href={waHref}

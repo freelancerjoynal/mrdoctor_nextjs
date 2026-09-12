@@ -84,5 +84,5 @@ export default async function SubdomainSitePage({
       />
     );
   }
-  return <HospitalSite hospital={profile.data} />;
+  return <HospitalSite hospital={profile.data} serialBase={serialBase} />;
 }

@@ -103,6 +103,7 @@ export interface PublicHospital {
   phone?: string | null;
   establishedYear?: number | null;
   templateName?: string | null;
+  blogs?: PublicBlog[] | null;
   reviews?: PublicReview[] | null;
   rating?: RatingSummary | null;
   chambers: Array<{
@@ -119,6 +120,9 @@ export interface PublicHospital {
       name: string;
       degree: string;
       speciality: string;
+      tagline?: string | null;
+      profilePicture?: string | null;
+      gender?: "MALE" | "FEMALE" | null;
     } | null;
   }>;
 }
