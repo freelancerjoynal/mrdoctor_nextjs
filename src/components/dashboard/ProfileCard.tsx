@@ -3,6 +3,7 @@ import { RoleBadge } from "./RoleBadge";
 import type { Session, UserProfile } from "@/lib/auth/types";
 import { getDisplayName } from "@/lib/auth/displayName";
 import { ROLE_META } from "@/lib/auth/constants";
+import Link from "next/link";
 
 export function ProfileCard({
   session,
@@ -53,6 +54,18 @@ export function ProfileCard({
               </div>
             ))}
           </dl>
+          {(session.role === "DOCTOR" || session.role === "DOCTOR_STAFF") && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="truncate text-xs text-slate-500">{profile?.email}</p>
+              <Link
+                href="/dashboard/profile"
+                className="rounded-full px-4 py-2 text-sm font-bold text-white shadow transition hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #059669, #0891b2)" }}
+              >
+                👤 প্রোফাইল সম্পাদনা
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </FadeIn>

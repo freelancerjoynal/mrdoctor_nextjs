@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/auth/displayName";
 import { ROLE_META } from "@/lib/auth/constants";
 import { ProfileCard } from "@/components/dashboard/ProfileCard";
+import { MyDoctorCard } from "@/components/dashboard/MyDoctorCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { DashboardCollections } from "./DashboardCollections";
@@ -35,6 +36,11 @@ export default async function DashboardPage() {
 
       <ProfileCard session={session} profile={profile} />
 
+      {/* Staff sees which doctor they work under */}
+      {session.role === "DOCTOR_STAFF" && profile?.staffDoctor && (
+        <MyDoctorCard doctor={profile.staffDoctor} />
+      )}
+
       {/* Real collections replace the dummy stats for doctor roles */}
       {(session.role === "DOCTOR" || session.role === "DOCTOR_STAFF") && (
         <DashboardCollections isDoctor={session.role === "DOCTOR"} />
@@ -46,10 +52,22 @@ export default async function DashboardPage() {
           <h2 className="mb-3 text-base font-black text-slate-900 sm:text-lg">পরিচালনা</h2>
           <div className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
             <ManageLink
+              href="/dashboard/profile"
+              emoji="👤"
+              label="প্রোফাইল ব্যবস্থাপনা"
+              hint="নাম ও পাসওয়ার্ড পরিবর্তন করুন"
+            />
+            <ManageLink
               href="/dashboard/appointments"
               emoji="📋"
               label="অ্যাপয়েন্টমেন্ট প্যানেল"
               hint="আজকের তালিকা, পেন্ডিং অনুরোধ ও কালেকশন"
+            />
+            <ManageLink
+              href="/dashboard/local-booking"
+              emoji="➕"
+              label="লোকাল বুকিং"
+              hint="সরাসরি রোগী + SMS রসিদ"
             />
             <ManageLink
               href="/dashboard/collection"

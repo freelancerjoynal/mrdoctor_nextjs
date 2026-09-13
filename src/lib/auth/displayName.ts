@@ -12,6 +12,7 @@ export function getDisplayName(
     profile?.doctorProfile?.name ||
     profile?.hospitalProfile?.name ||
     profile?.superAdminProfile?.name ||
+    profile?.name ||
     "";
   if (linked.trim()) return linked.trim();
   if (profile?.email) return profile.email.split("@")[0];

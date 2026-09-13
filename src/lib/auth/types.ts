@@ -24,13 +24,29 @@ import type {
   SuperAdminProfile,
 } from "./profiles";
 
+/** The doctor a DOCTOR_STAFF user works under (null for other roles). */
+export interface StaffDoctorInfo {
+  id: string;
+  name: string;
+  degree: string;
+  speciality: string;
+  tagline?: string | null;
+  phone: string;
+  profilePicture?: string | null;
+  gender?: "MALE" | "FEMALE" | null;
+  username: string;
+}
+
 /** Canonical profile shape returned by GET /api/users/profile */
 export interface UserProfile {
   id: string;
   email: string;
+  /** Display name for roles without a dedicated profile table (staff etc.). Email is immutable. */
+  name?: string | null;
   role: Role;
   isVerified: boolean;
   createdAt: string;
+  staffDoctor?: StaffDoctorInfo | null;
   doctorProfile?: DoctorProfile | null;
   hospitalProfile?: HospitalProfile | null;
   superAdminProfile?: SuperAdminProfile | null;

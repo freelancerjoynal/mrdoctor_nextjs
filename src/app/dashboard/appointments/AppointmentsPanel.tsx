@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toBn } from "@/lib/bn";
+import { LocalBookingPanel } from "../local-booking/LocalBookingPanel";
 
-type Status = "PENDING" | "CONFIRMED" | "DONE" | "CANCELLED";
-type Tab = "today" | "upcoming" | "pending" | "last30";
+type MainTab = "today" | "tomorrow" | "last30";
+type SubTab = "ALL" | "ONLINE" | "OFFLINE";
 
 interface Bucket {
   total: number;
@@ -23,12 +24,12 @@ interface Summary {
   lifetime: Bucket | null;
 }
 
-interface Row {
+interface ConfirmedRow {
   id: string;
+  serial: number;
   patientName: string;
   patientType?: string | null;
   patientAge?: number | null;
-  patientWeight?: number | null;
   patientArea?: string | null;
   contactPhone: string;
   problem: string;
@@ -37,127 +38,118 @@ interface Row {
   chamberName?: string | null;
   hospitalName?: string | null;
   doctorName?: string | null;
-  status: Status;
-  fee?: number;
+  bookingType: "ONLINE" | "OFFLINE";
+  collectionAmount?: number | null;
+  paymentAmount?: number | null;
+  amount: number;
+  transactionId?: string | null;
+  orderId?: string | null;
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
 }
 
-const STATUS_BN: Record<Status, string> = {
-  PENDING: "বিচারাধীন",
-  CONFIRMED: "নিশ্চিত",
-  DONE: "সম্পন্ন",
-  CANCELLED: "বাতিল",
+const TYPE_BN: Record<ConfirmedRow["bookingType"], string> = {
+  ONLINE: "অনলাইন",
+  OFFLINE: "অফলাইন",
 };
 
-const STATUS_CLS: Record<Status, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  CONFIRMED: "bg-sky-100 text-sky-800",
-  DONE: "bg-emerald-100 text-emerald-800",
-  CANCELLED: "bg-slate-200 text-slate-500",
+const TYPE_CLS: Record<ConfirmedRow["bookingType"], string> = {
+  ONLINE: "bg-violet-100 text-violet-800",
+  OFFLINE: "bg-teal-100 text-teal-800",
 };
 
 function taka(n: number): string {
   return `৳${toBn(n)}`;
 }
 
-function isoToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function isoShift(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: "today", label: "আজকের" },
-  { key: "upcoming", label: "আসন্ন" },
-  { key: "pending", label: "পেন্ডিং অনুরোধ" },
-  { key: "last30", label: "গত ৩০ দিন" },
+const MAIN_TABS: { key: MainTab; label: string }[] = [
+  { key: "today", label: "আজকের অ্যাপয়েন্টমেন্ট" },
+  { key: "tomorrow", label: "আগামীকালের অ্যাপয়েন্টমেন্ট" },
+  { key: "last30", label: "গত ৩০ দিনের অ্যাপয়েন্টমেন্ট" },
 ];
 
-async function api(path: string, init?: RequestInit) {
-  const res = await fetch(`/api/backend/api/users/appointments${path}`, {
+const SUB_TABS: { key: SubTab; label: string }[] = [
+  { key: "ALL", label: "সব" },
+  { key: "ONLINE", label: "অনলাইন" },
+  { key: "OFFLINE", label: "অফলাইন" },
+];
+
+async function confirmedApi(path: string, init?: RequestInit) {
+  const res = await fetch(`/api/backend/api/users/appointments/confirmed${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
   });
   const data = (await res.json().catch(() => null)) as {
-    data?: unknown;
+    data?: ConfirmedRow[];
+    pagination?: { total?: number };
     error?: string;
   } | null;
   if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
-  return data?.data;
+  return { rows: Array.isArray(data?.data) ? (data?.data ?? []) : [], total: data?.pagination?.total ?? 0 };
 }
 
-function rowsOf(payload: unknown): Row[] {
-  if (Array.isArray(payload)) return payload as Row[];
-  const list = (payload as { data?: Row[] })?.data;
-  return Array.isArray(list) ? list : [];
+async function summaryApi(): Promise<Summary> {
+  const res = await fetch("/api/backend/api/users/appointments/summary");
+  const data = (await res.json().catch(() => null)) as { data?: Summary; error?: string } | null;
+  if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
+  return data?.data as Summary;
 }
 
-async function fetchTab(tab: Tab): Promise<Row[]> {
-  if (tab === "today") return rowsOf(await api("/today"));
-  if (tab === "upcoming") {
-    // From tomorrow onward, nearest first.
-    const list = rowsOf(await api(`?from=${isoShift(1)}&limit=50`));
-    return [...list].sort((a, b) => +new Date(a.appointmentDate) - +new Date(b.appointmentDate));
-  }
-  if (tab === "last30") return rowsOf(await api(`?from=${isoShift(-29)}&to=${isoToday()}&limit=50`));
-  return rowsOf(await api("?status=PENDING&limit=50"));
-}
-
-/** Doctor/staff work panel: compact rows open a full-detail popup. */
+/** Confirmed-only work panel: day tabs × type tabs, daily serials, new-booking popup. */
 export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [counts, setCounts] = useState<Record<Tab, number>>({ today: 0, upcoming: 0, pending: 0, last30: 0 });
-  const [tab, setTab] = useState<Tab>("today");
-  const [selected, setSelected] = useState<Row | null>(null);
+  const [rows, setRows] = useState<ConfirmedRow[]>([]);
+  const [counts, setCounts] = useState<Record<MainTab, number>>({ today: 0, tomorrow: 0, last30: 0 });
+  const [mainTab, setMainTab] = useState<MainTab>("today");
+  const [subTab, setSubTab] = useState<SubTab>("ALL");
+  const [selected, setSelected] = useState<ConfirmedRow | null>(null);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [acting, setActing] = useState<string | null>(null);
 
-  const loadTab = useCallback(async (t: Tab, quiet = false) => {
-    if (!quiet) setLoading(true);
-    setError("");
-    try {
-      const [list, s] = await Promise.all([
-        fetchTab(t),
-        api("/summary") as Promise<Summary>,
-      ]);
-      setRows(list);
-      setSummary(s);
-      if (!quiet) {
-        const [todayL, upL, pendL, lastL] = await Promise.all([
-          fetchTab("today"),
-          fetchTab("upcoming"),
-          fetchTab("pending"),
-          fetchTab("last30"),
-        ]);
-        setCounts({ today: todayL.length, upcoming: upL.length, pending: pendL.length, last30: lastL.length });
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
-    } finally {
-      setLoading(false);
-    }
+  const loadCounts = useCallback(async () => {
+    const [t, m, l] = await Promise.all([
+      confirmedApi("?range=today&bookingType=ALL&limit=1"),
+      confirmedApi("?range=tomorrow&bookingType=ALL&limit=1"),
+      confirmedApi("?range=last30&bookingType=ALL&limit=1"),
+    ]);
+    setCounts({ today: t.total, tomorrow: m.total, last30: l.total });
   }, []);
+
+  const loadList = useCallback(async (main: MainTab, sub: SubTab) => {
+    const { rows } = await confirmedApi(`?range=${main}&bookingType=${sub}&limit=50`);
+    setRows(rows);
+  }, []);
+
+  const refresh = useCallback(
+    async (main: MainTab, sub: SubTab, quiet = false) => {
+      if (!quiet) setLoading(true);
+      setError("");
+      try {
+        await Promise.all([loadList(main, sub), loadCounts(), summaryApi().then(setSummary)]);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadCounts, loadList],
+  );
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [t, u, p, l, s] = await Promise.all([
-          fetchTab("today"),
-          fetchTab("upcoming"),
-          fetchTab("pending"),
-          fetchTab("last30"),
-          api("/summary") as Promise<Summary>,
+        const [{ rows }, t, m, l, s] = await Promise.all([
+          confirmedApi("?range=today&bookingType=ALL&limit=50"),
+          confirmedApi("?range=today&bookingType=ALL&limit=1"),
+          confirmedApi("?range=tomorrow&bookingType=ALL&limit=1"),
+          confirmedApi("?range=last30&bookingType=ALL&limit=1"),
+          summaryApi(),
         ]);
         if (cancelled) return;
-        setRows(t);
-        setCounts({ today: t.length, upcoming: u.length, pending: p.length, last30: l.length });
+        setRows(rows);
+        setCounts({ today: t.total, tomorrow: m.total, last30: l.total });
         setSummary(s);
       } catch (err: unknown) {
         if (cancelled) return;
@@ -171,36 +163,30 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
     };
   }, []);
 
-  const switchTab = (t: Tab) => {
-    setTab(t);
+  const switchMain = (t: MainTab) => {
+    setMainTab(t);
     setSelected(null);
-    void loadTab(t);
+    setLoading(true);
+    setError("");
+    loadList(t, subTab)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "লোড করা যায়নি।"))
+      .finally(() => setLoading(false));
   };
 
-  const setStatus = async (id: string, status: Status) => {
-    if (acting) return;
-    setActing(id);
-    try {
-      const updated = (await api(`/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      })) as Row;
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: updated.status ?? status } : r)));
-      setSelected((prev) => (prev && prev.id === id ? { ...prev, status: updated.status ?? status } : prev));
-      // Refresh counts + summary quietly so collection stays correct.
-      const [lists, s] = await Promise.all([
-        Promise.all([fetchTab("today"), fetchTab("upcoming"), fetchTab("pending"), fetchTab("last30")]),
-        api("/summary") as Promise<Summary>,
-      ]);
-      const byTab: Record<Tab, Row[]> = { today: lists[0], upcoming: lists[1], pending: lists[2], last30: lists[3] };
-      setRows(byTab[tab]);
-      setCounts({ today: lists[0].length, upcoming: lists[1].length, pending: lists[2].length, last30: lists[3].length });
-      setSummary(s);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "আপডেট করা যায়নি।");
-    } finally {
-      setActing(null);
-    }
+  const switchSub = (s: SubTab) => {
+    setSubTab(s);
+    setSelected(null);
+    setLoading(true);
+    setError("");
+    loadList(mainTab, s)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "লোড করা যায়নি।"))
+      .finally(() => setLoading(false));
+  };
+
+  // After a popup booking: refresh the list quietly but keep the popup open
+  // so staff can read the SMS receipt before closing it manually.
+  const onBooked = () => {
+    void refresh(mainTab, subTab, true);
   };
 
   return (
@@ -222,17 +208,12 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
               </p>
             )}
           </div>
-          <div className="group relative">
-            <span
-              className="flex h-8 w-8 cursor-help items-center justify-center rounded-full bg-white/20 text-base font-bold"
-              aria-label="নোট"
-            >
-              !
-            </span>
-            <div className="pointer-events-none absolute right-0 top-10 z-10 w-56 rounded-xl bg-slate-900 p-3 text-xs leading-relaxed text-white opacity-0 shadow-2xl transition group-hover:opacity-100">
-              এই অঙ্ক পরিবর্তন হতে পারে, কারণ যেকোনো অ্যাপয়েন্টমেন্টের অবস্থা বদলাতে পারে।
-            </div>
-          </div>
+          <button
+            onClick={() => setBookingOpen(true)}
+            className="shrink-0 rounded-xl bg-white px-5 py-2.5 text-sm font-black text-emerald-700 shadow transition hover:-translate-y-0.5 hover:shadow-lg"
+          >
+            ➕ নতুন অ্যাপয়েন্টমেন্ট
+          </button>
         </div>
       </section>
 
@@ -252,14 +233,14 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
         )}
       </section>
 
-      {/* ---------- Tabs ---------- */}
+      {/* ---------- Main tabs: confirmed only ---------- */}
       <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
+        {MAIN_TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => switchTab(t.key)}
+            onClick={() => switchMain(t.key)}
             className={`rounded-full px-4 py-2.5 text-sm font-bold transition sm:px-5 ${
-              tab === t.key ? "bg-emerald-600 text-white shadow" : "bg-white text-slate-600 ring-1 ring-slate-200"
+              mainTab === t.key ? "bg-emerald-600 text-white shadow" : "bg-white text-slate-600 ring-1 ring-slate-200"
             }`}
           >
             {t.label} ({toBn(counts[t.key])})
@@ -267,7 +248,22 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
         ))}
       </div>
 
-      {/* ---------- Compact rows: name · mobile · amount ---------- */}
+      {/* ---------- Sub tabs: all / online / offline ---------- */}
+      <div className="flex flex-wrap gap-2">
+        {SUB_TABS.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => switchSub(s.key)}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              subTab === s.key ? "bg-slate-900 text-white shadow" : "bg-white text-slate-600 ring-1 ring-slate-200"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ---------- Rows with daily serial ---------- */}
       {loading ? (
         <p className="rounded-2xl bg-white p-8 text-center text-slate-500 ring-1 ring-slate-100">লোড হচ্ছে…</p>
       ) : rows.length === 0 ? (
@@ -282,19 +278,19 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
                 onClick={() => setSelected(r)}
                 className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg font-black text-emerald-800">
-                  {(r.patientName.trim()[0] || "অ").toUpperCase()}
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-lg font-black text-white">
+                  {toBn(r.serial || 0)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-black text-slate-900">{r.patientName}</span>
                   <span className="block truncate text-sm text-slate-500">📞 {r.contactPhone}</span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block font-black text-emerald-700">{r.fee != null ? taka(r.fee) : "—"}</span>
+                  <span className="block font-black text-emerald-700">{taka(r.amount ?? 0)}</span>
                   <span
-                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_CLS[r.status]}`}
+                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${TYPE_CLS[r.bookingType]}`}
                   >
-                    {STATUS_BN[r.status]}
+                    {TYPE_BN[r.bookingType]}
                   </span>
                 </span>
               </button>
@@ -326,15 +322,22 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
               transition={{ type: "spring", stiffness: 380, damping: 34 }}
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xl font-black text-slate-900">{selected.patientName}</p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_CLS[selected.status]}`}>
-                      {STATUS_BN[selected.status]}
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
-                      {selected.patientType === "RENEW" ? "পুরনো রোগী" : "নতুন রোগী"}
-                    </span>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-xl font-black text-white">
+                    {toBn(selected.serial || 0)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-xl font-black text-slate-900">{selected.patientName}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${TYPE_CLS[selected.bookingType]}`}
+                      >
+                        {TYPE_BN[selected.bookingType]} · সিরিয়াল {toBn(selected.serial || 0)}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
+                        {selected.patientType === "RENEW" ? "পুরনো রোগী" : "নতুন রোগী"}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <button
@@ -348,47 +351,59 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
 
               <dl className="mt-4 space-y-2.5 rounded-2xl bg-slate-50 p-4 text-sm ring-1 ring-slate-100">
                 <DetailRow label="মোবাইল" value={selected.contactPhone} />
-                <DetailRow label="পেমেন্ট" value={selected.fee != null ? taka(selected.fee) : "—"} strong />
+                <DetailRow label="আদায়" value={taka(selected.amount ?? 0)} strong />
                 <DetailRow label="সমস্যা" value={selected.problem} />
                 {selected.dayLabel && <DetailRow label="তারিখ" value={selected.dayLabel} />}
                 {selected.chamberName && <DetailRow label="চেম্বার" value={selected.chamberName} />}
                 {selected.hospitalName && <DetailRow label="হাসপাতাল" value={selected.hospitalName} />}
                 {selected.patientAge != null && <DetailRow label="বয়স" value={toBn(selected.patientAge)} />}
-                {selected.patientWeight != null && (
-                  <DetailRow label="ওজন" value={`${toBn(selected.patientWeight)} কেজি`} />
-                )}
                 {selected.patientArea && <DetailRow label="এলাকা" value={selected.patientArea} />}
+                {selected.bookingType === "ONLINE" && (
+                  <>
+                    {selected.paymentMethod && <DetailRow label="মাধ্যম" value={selected.paymentMethod} />}
+                    {selected.transactionId && <DetailRow label="ট্রানজেকশন" value={selected.transactionId} />}
+                    {selected.orderId && <DetailRow label="অর্ডার" value={selected.orderId} />}
+                  </>
+                )}
               </dl>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                {selected.status === "PENDING" && (
-                  <button
-                    disabled={acting === selected.id}
-                    onClick={() => void setStatus(selected.id, "CONFIRMED")}
-                    className="flex-1 rounded-xl bg-sky-600 px-4 py-2.5 font-bold text-white hover:bg-sky-700 disabled:opacity-50"
-                  >
-                    নিশ্চিত করুন
-                  </button>
-                )}
-                {(selected.status === "PENDING" || selected.status === "CONFIRMED") && (
-                  <button
-                    disabled={acting === selected.id}
-                    onClick={() => void setStatus(selected.id, "DONE")}
-                    className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    সম্পন্ন
-                  </button>
-                )}
-                {selected.status !== "CANCELLED" && selected.status !== "DONE" && (
-                  <button
-                    disabled={acting === selected.id}
-                    onClick={() => void setStatus(selected.id, "CANCELLED")}
-                    className="flex-1 rounded-xl px-4 py-2.5 font-bold text-red-600 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    বাতিল
-                  </button>
-                )}
+      {/* ---------- New appointment popup (offline local booking) ---------- */}
+      <AnimatePresence>
+        {bookingOpen && (
+          <motion.div
+            className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+            onClick={() => setBookingOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="নতুন অ্যাপয়েন্টমেন্ট"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div
+              className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-slate-50 p-4 shadow-2xl sm:rounded-2xl sm:p-6"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 48, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 32, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-lg font-black text-slate-900">➕ নতুন অ্যাপয়েন্টমেন্ট</p>
+                <button
+                  onClick={() => setBookingOpen(false)}
+                  aria-label="বন্ধ করুন"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg font-bold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                >
+                  ✕
+                </button>
               </div>
+              <LocalBookingPanel onSuccess={onBooked} />
             </motion.div>
           </motion.div>
         )}

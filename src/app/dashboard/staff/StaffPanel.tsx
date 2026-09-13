@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 interface StaffRow {
   id: string;
   email: string;
+  name?: string | null;
   role: string;
   isVerified: boolean;
   createdAt: string;
@@ -27,6 +28,7 @@ async function staffApi(path: string, init?: RequestInit) {
 /** Doctor adds staff by email — credentials go to the staff's email. */
 export function StaffPanel() {
   const [rows, setRows] = useState<StaffRow[]>([]);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -69,7 +71,16 @@ export function StaffPanel() {
 
   const invite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (sending || email.trim().length < 5) return;
+    if (sending) return;
+    const trimmedName = name.trim().replace(/\s+/g, " ");
+    if (trimmedName.length < 2 || trimmedName.length > 80) {
+      setError("স্টাফের নাম দিন (২–৮০ অক্ষর)।");
+      return;
+    }
+    if (email.trim().length < 5) {
+      setError("সঠিক ইমেইল ঠিকানা দিন।");
+      return;
+    }
     setSending(true);
     setError("");
     setNotice("");
@@ -77,7 +88,7 @@ export function StaffPanel() {
     try {
       const data = (await staffApi("/", {
         method: "POST",
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ name: trimmedName, email: email.trim() }),
       })) as {
         data?: { staff: StaffRow; tempPassword: string; emailSent: boolean };
         message?: string;
@@ -86,6 +97,7 @@ export function StaffPanel() {
       if (data?.data?.tempPassword) {
         setOncePassword({ email: data.data.staff.email, password: data.data.tempPassword });
       }
+      setName("");
       setEmail("");
       await refresh(true);
     } catch (err: unknown) {
@@ -110,9 +122,16 @@ export function StaffPanel() {
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
         <p className="text-lg font-black text-slate-900">নতুন স্টাফ যোগ করুন</p>
         <p className="mt-1 text-sm text-slate-500">
-          ইমেইল দিলেই অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ও ইমেইল ওই ঠিকানায় পাঠিয়ে দেওয়া হবে।
+          নাম ও ইমেইল দিলেই অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় পাঠিয়ে দেওয়া হবে।
         </p>
         <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="স্টাফের নাম *"
+            maxLength={80}
+            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
+          />
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -162,8 +181,11 @@ export function StaffPanel() {
                 className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-slate-100"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-bold text-slate-900">{s.email}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="truncate font-bold text-slate-900">
+                    {s.name?.trim() ? s.name : s.email}
+                  </p>
+                  <p className="truncate text-xs text-slate-400">
+                    {s.name?.trim() ? `${s.email} · ` : ""}
                     {s.isVerified ? "✓ সক্রিয়" : "অপেক্ষমাণ"} · {new Date(s.createdAt).toLocaleDateString("bn-BD")}
                   </p>
                 </div>
