@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/auth/apiFetch";
+import { useAppDispatch } from "@/lib/store/hooks";
+import { patchLocalName } from "@/lib/store/profileSlice";
 
 async function profileApi(body: Record<string, string>) {
   const res = await apiFetch("/api/backend/api/users/profile", {
@@ -27,6 +29,7 @@ export function ProfilePanel({
   initialName: string;
 }) {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [name, setName] = useState(initialName);
   const [nameSaving, setNameSaving] = useState(false);
   const [nameMsg, setNameMsg] = useState({ ok: "", err: "" });
@@ -50,6 +53,7 @@ export function ProfilePanel({
     try {
       await profileApi({ name: trimmed });
       setName(trimmed);
+      dispatch(patchLocalName(trimmed));
       setNameMsg({ ok: "নাম সফলভাবে আপডেট হয়েছে।", err: "" });
       router.refresh();
     } catch (err: unknown) {

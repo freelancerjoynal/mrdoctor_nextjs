@@ -50,6 +50,8 @@ export interface UserProfile {
   doctorProfile?: DoctorProfile | null;
   hospitalProfile?: HospitalProfile | null;
   superAdminProfile?: SuperAdminProfile | null;
+  /** Approval right (staff): false = collect + update only, doctor approves. */
+  canApprove?: boolean | null;
 }
 
 export type OtpPurpose = "signup" | "login" | "reset";

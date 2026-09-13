@@ -9,6 +9,7 @@ interface StaffRow {
   name?: string | null;
   role: string;
   isVerified: boolean;
+  canApprove?: boolean | null;
   createdAt: string;
 }
 
@@ -31,6 +32,9 @@ export function StaffPanel() {
   const [rows, setRows] = useState<StaffRow[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Manage-approve option: ON = staff can only collect + update,
+  // approval (serve/done) stays with the doctor.
+  const [restrictApprove, setRestrictApprove] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -89,7 +93,7 @@ export function StaffPanel() {
     try {
       const data = (await staffApi("/", {
         method: "POST",
-        body: JSON.stringify({ name: trimmedName, email: email.trim() }),
+        body: JSON.stringify({ name: trimmedName, email: email.trim(), canApprove: !restrictApprove }),
       })) as {
         data?: { staff: StaffRow; tempPassword: string; emailSent: boolean };
         message?: string;
@@ -100,6 +104,7 @@ export function StaffPanel() {
       }
       setName("");
       setEmail("");
+      setRestrictApprove(false);
       await refresh(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "যোগ করা যায়নি।");
@@ -118,6 +123,19 @@ export function StaffPanel() {
     }
   };
 
+  const flipApprove = async (s: StaffRow) => {
+    setError("");
+    try {
+      await staffApi(`/${s.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ canApprove: !(s.canApprove ?? true) }),
+      });
+      await refresh(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "বদলানো যায়নি।");
+    }
+  };
+
   return (
     <div className="space-y-5">
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
@@ -125,7 +143,7 @@ export function StaffPanel() {
         <p className="mt-1 text-sm text-slate-500">
           নাম ও ইমেইল দিলেই অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় পাঠিয়ে দেওয়া হবে।
         </p>
-        <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -148,7 +166,34 @@ export function StaffPanel() {
           >
             {sending ? "যোগ হচ্ছে…" : "➕ স্টাফ যোগ করুন"}
           </button>
+          <button
+            type="button"
+            onClick={() => setRestrictApprove((v) => !v)}
+            aria-pressed={restrictApprove}
+            title="চালু করলে স্টাফ শুধু কালেকশন + আপডেট করতে পারবে, অনুমোদন শুধু ডাক্তার দেবেন"
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
+              restrictApprove
+                ? "bg-amber-500 text-white ring-amber-500"
+                : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${
+                restrictApprove ? "justify-end bg-white/30" : "justify-start bg-slate-200"
+              }`}
+            >
+              <span className={`h-4 w-4 rounded-full shadow ${restrictApprove ? "bg-white" : "bg-white"}`} />
+            </span>
+            🔒 Manage approve {restrictApprove ? "ON" : "OFF"}
+          </button>
         </form>
+        {restrictApprove && (
+          <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
+            চালু আছে — এই স্টাফ শুধু কালেকশন (বুকিং) + আপডেট করতে পারবে। সেবা সম্পন্ন / ডিলিটের
+            অনুমোদন শুধু আপনি (ডাক্তার) দিতে পারবেন।
+          </p>
+        )}
         {error && <p className="mt-3 text-sm font-bold text-red-600">{error}</p>}
         {notice && <p className="mt-3 text-sm font-bold text-emerald-700">{notice}</p>}
         {oncePassword && (
@@ -176,28 +221,53 @@ export function StaffPanel() {
           </p>
         ) : (
           <ul className="space-y-2">
-            {rows.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-slate-100"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-slate-900">
-                    {s.name?.trim() ? s.name : s.email}
-                  </p>
-                  <p className="truncate text-xs text-slate-400">
-                    {s.name?.trim() ? `${s.email} · ` : ""}
-                    {s.isVerified ? "✓ সক্রিয়" : "অপেক্ষমাণ"} · {new Date(s.createdAt).toLocaleDateString("bn-BD")}
-                  </p>
-                </div>
-                <button
-                  onClick={() => void remove(s.id)}
-                  className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-red-600 ring-1 ring-red-200 hover:bg-red-50"
+            {rows.map((s) => {
+              const full = s.canApprove ?? true;
+              return (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-slate-100"
                 >
-                  সরান
-                </button>
-              </li>
-            ))}
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-slate-900">
+                      {s.name?.trim() ? s.name : s.email}
+                    </p>
+                    <p className="truncate text-xs text-slate-400">
+                      {s.name?.trim() ? `${s.email} · ` : ""}
+                      {s.isVerified ? "✓ সক্রিয়" : "অপেক্ষমাণ"} · {new Date(s.createdAt).toLocaleDateString("bn-BD")}
+                    </p>
+                    <p className="mt-1.5">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${
+                          full ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"
+                        }`}
+                      >
+                        {full ? "✓ পূর্ণ অধিকার" : "🔒 শুধু কালেকশন + আপডেট"}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => void flipApprove(s)}
+                      title={full ? "অনুমোদন সীমাবদ্ধ করুন" : "পূর্ণ অধিকার দিন"}
+                      className={`rounded-full px-4 py-2 text-sm font-bold ring-1 transition ${
+                        full
+                          ? "text-amber-700 ring-amber-200 hover:bg-amber-50"
+                          : "text-emerald-700 ring-emerald-200 hover:bg-emerald-50"
+                      }`}
+                    >
+                      {full ? "🔒 সীমাবদ্ধ করুন" : "✓ পূর্ণ করুন"}
+                    </button>
+                    <button
+                      onClick={() => void remove(s.id)}
+                      className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-red-600 ring-1 ring-red-200 hover:bg-red-50"
+                    >
+                      সরান
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

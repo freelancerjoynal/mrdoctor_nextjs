@@ -1,6 +1,7 @@
 "use client";
 
 import { toBn } from "@/lib/bn";
+import { Skeleton } from "./Skeleton";
 
 function taka(n: number): string {
   return `৳${toBn(n)}`;
@@ -46,27 +47,43 @@ export function CollectionCard({
   tone?: CollectionTone;
 }) {
   const t = TONES[tone];
+  // Shimmer only while the first load is in flight — background refreshes
+  // keep showing the last known figures instead of blanking.
+  const showSkeleton = loading && bucket === undefined;
   const inner = (
     <>
       <p className="flex items-center gap-1.5 text-sm font-black uppercase tracking-wide text-white/85">
         <span aria-hidden="true">{t.emoji}</span> {label}
       </p>
-      <p className="mt-1 text-3xl font-black tracking-tight text-white drop-shadow-sm sm:text-4xl">
-        {loading || bucket === undefined ? "…" : bucket === null ? "—" : taka(bucket.total)}
-      </p>
-      {bucket && (
+      {showSkeleton ? (
+        <div className="mt-2 space-y-2" aria-label="লোড হচ্ছে">
+          <Skeleton light className="h-9 w-36 sm:h-10" />
+          <Skeleton light className="h-4 w-28" />
+          <p className="flex flex-wrap gap-1.5">
+            <Skeleton light className="h-6 w-24 !rounded-full" />
+            <Skeleton light className="h-6 w-24 !rounded-full" />
+          </p>
+        </div>
+      ) : (
         <>
-          <p className="mt-1 text-sm font-bold text-white/90">
-            👥 {toBn(bucket.count)} জন{hint ? ` · ${hint}` : ""}
+          <p className="mt-1 text-3xl font-black tracking-tight text-white drop-shadow-sm sm:text-4xl">
+            {bucket == null ? "—" : taka(bucket.total)}
           </p>
-          <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-black">
-            <span className={`rounded-full px-2.5 py-1 ${t.pill}`}>
-              অনলাইন {taka(bucket.online.total)} · {toBn(bucket.online.count)}
-            </span>
-            <span className={`rounded-full px-2.5 py-1 ${t.pill}`}>
-              অফলাইন {taka(bucket.offline.total)} · {toBn(bucket.offline.count)}
-            </span>
-          </p>
+          {bucket && (
+            <>
+              <p className="mt-1 text-sm font-bold text-white/90">
+                👥 {toBn(bucket.count)} জন{hint ? ` · ${hint}` : ""}
+              </p>
+              <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-black">
+                <span className={`rounded-full px-2.5 py-1 ${t.pill}`}>
+                  অনলাইন {taka(bucket.online.total)} · {toBn(bucket.online.count)}
+                </span>
+                <span className={`rounded-full px-2.5 py-1 ${t.pill}`}>
+                  অফলাইন {taka(bucket.offline.total)} · {toBn(bucket.offline.count)}
+                </span>
+              </p>
+            </>
+          )}
         </>
       )}
     </>
