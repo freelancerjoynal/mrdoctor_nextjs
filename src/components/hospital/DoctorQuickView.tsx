@@ -92,11 +92,11 @@ export function DoctorQuickView({
         <div className="flex items-start gap-4 bg-blue-900 px-6 py-6 text-white">
           {/* eslint-disable-next-line @next/next/no-img-element -- portrait may be any external doctor-uploaded URL */}
           <img
-            src={doctorPortrait(entry.profilePicture, entry.gender)}
+              src={doctorPortrait(entry.profilePicture)}
             alt={entry.name}
             className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-2 ring-white/30"
             onError={(e) => {
-              const fallback = fallbackAvatar(entry.gender);
+              const fallback = fallbackAvatar();
               if (!e.currentTarget.src.endsWith(fallback)) {
                 e.currentTarget.src = fallback;
               }

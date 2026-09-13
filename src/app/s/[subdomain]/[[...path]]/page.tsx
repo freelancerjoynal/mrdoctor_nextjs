@@ -23,8 +23,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { subdomain } = await params;
   const profile = await resolveProfile(subdomain);
-  // Favicon: DB profile picture, else the gender-appropriate bundled avatar.
-  const demoIcon = { icon: fallbackAvatar(null) };
+  // Favicon: DB profile picture, else the global bundled avatar.
+  const demoIcon = { icon: fallbackAvatar() };
   // No database record (yet) → static demo personal site, so every
   // subdomain still feels like a complete individual website.
   if (!profile)
@@ -38,7 +38,7 @@ export async function generateMetadata({
     return {
       title: `${d.name} — ${d.speciality}`,
       description: d.tagline || d.bio?.slice(0, 150) || `${d.name}, ${d.degree}`,
-      icons: { icon: doctorPortrait(d.profilePicture, d.gender) },
+      icons: { icon: doctorPortrait(d.profilePicture) },
     };
   }
   const h = profile.data;

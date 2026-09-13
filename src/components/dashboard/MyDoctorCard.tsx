@@ -18,11 +18,11 @@ export function MyDoctorCard({ doctor }: { doctor: StaffDoctorInfo }) {
           <div className="mt-3 flex min-w-0 items-center gap-3 sm:gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element -- portrait may be any external doctor-uploaded URL */}
             <img
-              src={doctorPortrait(doctor.profilePicture, doctor.gender)}
+              src={doctorPortrait(doctor.profilePicture)}
               alt={doctor.name}
               className="h-14 w-14 shrink-0 rounded-2xl object-cover shadow-lg ring-1 ring-slate-200 sm:h-16 sm:w-16"
               onError={(e) => {
-                const fallback = fallbackAvatar(doctor.gender);
+                const fallback = fallbackAvatar();
                 if (!e.currentTarget.src.endsWith(fallback)) {
                   e.currentTarget.src = fallback;
                 }

@@ -469,11 +469,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           <div className="flex min-w-0 items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element -- portrait may be any external doctor-uploaded URL */}
             <img
-              src={doctorPortrait(doctor?.profilePicture, doctor?.gender)}
+              src={doctorPortrait(doctor?.profilePicture)}
               alt={doctor?.name ?? "ডাক্তার"}
               className="h-16 w-16 shrink-0 rounded-2xl border-2 border-white/40 object-cover shadow-lg sm:h-20 sm:w-20"
               onError={(e) => {
-                const fallback = fallbackAvatar(doctor?.gender);
+                const fallback = fallbackAvatar();
                 if (!e.currentTarget.src.endsWith(fallback)) e.currentTarget.src = fallback;
               }}
             />

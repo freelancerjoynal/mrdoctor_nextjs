@@ -5,6 +5,7 @@ import { getDisplayName } from "@/lib/auth/displayName";
 import { ROLE_META } from "@/lib/auth/constants";
 import { ProfileCard } from "@/components/dashboard/ProfileCard";
 import { MyDoctorCard } from "@/components/dashboard/MyDoctorCard";
+import { DoctorHeroCard } from "@/components/dashboard/DoctorHeroCard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { DashboardCollections } from "./DashboardCollections";
@@ -17,22 +18,34 @@ export default async function DashboardPage() {
   const meta = ROLE_META[session.role];
   const name = getDisplayName(session, profile);
 
+  // Doctor portrait hero (own profile for DOCTOR, staff's doctor for STAFF).
+  const heroDoctor =
+    session.role === "DOCTOR"
+      ? (profile?.doctorProfile ?? null)
+      : session.role === "DOCTOR_STAFF"
+        ? (profile?.staffDoctor ?? null)
+        : null;
+
   return (
     <div className="space-y-5 sm:space-y-6">
-      {/* Hero */}
-      <section
-        className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${meta.gradient} p-5 text-white shadow-2xl sm:rounded-3xl sm:p-8`}
-      >
-        <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/20 blur-2xl" />
-        <div className="absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
-        <p className="relative text-xs font-semibold uppercase tracking-widest text-white/80 sm:text-sm">
-          {meta.emoji} {meta.label} dashboard
-        </p>
-        <h1 className="relative mt-1 break-words text-2xl font-black tracking-tight sm:text-4xl">
-          হ্যালো, {name} 👋
-        </h1>
-        <p className="relative mt-1 max-w-lg text-sm text-white/85 sm:text-base">{meta.tagline}</p>
-      </section>
+      {heroDoctor ? (
+        <DoctorHeroCard doctor={heroDoctor} greeting={name} />
+      ) : (
+        /* Hero */
+        <section
+          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${meta.gradient} p-5 text-white shadow-2xl sm:rounded-3xl sm:p-8`}
+        >
+          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/20 blur-2xl" />
+          <div className="absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
+          <p className="relative text-xs font-semibold uppercase tracking-widest text-white/80 sm:text-sm">
+            {meta.emoji} {meta.label} dashboard
+          </p>
+          <h1 className="relative mt-1 break-words text-2xl font-black tracking-tight sm:text-4xl">
+            হ্যালো, {name} 👋
+          </h1>
+          <p className="relative mt-1 max-w-lg text-sm text-white/85 sm:text-base">{meta.tagline}</p>
+        </section>
+      )}
 
       <ProfileCard session={session} profile={profile} />
 

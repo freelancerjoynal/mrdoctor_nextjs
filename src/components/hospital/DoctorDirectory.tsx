@@ -93,11 +93,11 @@ export function DoctorDirectory({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- portrait may be any external doctor-uploaded URL */}
                 <img
-                  src={doctorPortrait(d.profilePicture, d.gender)}
+                  src={doctorPortrait(d.profilePicture)}
                   alt={d.name}
                   className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
                   onError={(e) => {
-                    const fallback = fallbackAvatar(d.gender);
+                    const fallback = fallbackAvatar();
                     if (!e.currentTarget.src.endsWith(fallback)) {
                       e.currentTarget.src = fallback;
                     }

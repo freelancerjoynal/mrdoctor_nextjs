@@ -4,6 +4,8 @@ import { getProfile } from "@/lib/auth/session";
 import { getDisplayName, getInitial } from "@/lib/auth/displayName";
 import { ROLE_META } from "@/lib/auth/constants";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { DashboardFooter } from "@/components/dashboard/DashboardFooter";
+import { HeaderAvatar } from "@/components/dashboard/HeaderAvatar";
 
 export default async function DashboardLayout({
   children,
@@ -15,14 +17,43 @@ export default async function DashboardLayout({
   const name = getDisplayName(data.session, data.profile);
   const roleBn = ROLE_META[data.session.role].label;
 
+  // Public portal link for the footer: doctor username / hospital slug
+  // (subdomain portal), resolved per role.
+  let portalSubdomain: string | null = null;
+  let portalKind: "doctor" | "hospital" | null = null;
+  if (data.session.role === "DOCTOR" && data.profile?.doctorProfile?.username?.trim()) {
+    portalSubdomain = data.profile.doctorProfile.username.trim();
+    portalKind = "doctor";
+  } else if (data.session.role === "DOCTOR_STAFF" && data.profile?.staffDoctor?.username?.trim()) {
+    portalSubdomain = data.profile.staffDoctor.username.trim();
+    portalKind = "doctor";
+  } else if (data.session.role === "HOSPITAL" && data.profile?.hospitalProfile?.slug?.trim()) {
+    portalSubdomain = data.profile.hospitalProfile.slug.trim();
+    portalKind = "hospital";
+  }
+
+  // Header avatar: the doctor's profile picture (own profile for DOCTOR,
+  // staff's doctor for DOCTOR_STAFF, global avatar fallback included);
+  // other roles keep the initial badge.
+  const headerPicture =
+    data.session.role === "DOCTOR"
+      ? (data.profile?.doctorProfile?.profilePicture ?? null)
+      : data.session.role === "DOCTOR_STAFF"
+        ? (data.profile?.staffDoctor?.profilePicture ?? null)
+        : undefined;
+
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="flex min-h-screen flex-col bg-slate-100">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-sm font-black text-white shadow">
-              {getInitial(name)}
-            </span>
+            {headerPicture !== undefined ? (
+              <HeaderAvatar profilePicture={headerPicture} name={name} />
+            ) : (
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-sm font-black text-white shadow">
+                {getInitial(name)}
+              </span>
+            )}
             <span className="min-w-0">
               <span className="block max-w-36 truncate text-sm font-black tracking-tight text-slate-900 sm:max-w-52 sm:text-base">
                 {name}
@@ -43,7 +74,8 @@ export default async function DashboardLayout({
           </div>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">{children}</div>
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 sm:px-6 sm:py-8">{children}</div>
+      <DashboardFooter portalSubdomain={portalSubdomain} portalKind={portalKind} />
     </div>
   );
 }

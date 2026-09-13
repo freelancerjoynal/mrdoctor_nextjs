@@ -12,15 +12,16 @@ function stripPort(host: string): string {
 }
 
 /**
- * Build the absolute URL of a doctor's portal from the current host.
- * - `dr-rahman.localhost:3000` → `http://<username>.localhost:3000`
- * - `hospital1.domain.com` → `https://<username>.domain.com`
- * - apex `domain.com` → `https://<username>.domain.com`
- * Falls back to `/s/<username>` only when the host shape is unknown
+ * Build the absolute URL of a public portal (doctor `<username>.domain.com`
+ * or hospital `<slug>.domain.com`) from the current host.
+ * - `dr-rahman.localhost:3000` → `http://<sub>.localhost:3000`
+ * - `hospital1.domain.com` → `https://<sub>.domain.com`
+ * - apex `domain.com` → `https://<sub>.domain.com`
+ * Falls back to `/s/<sub>` only when the host shape is unknown
  * (raw IP, single label) so the link never dead-ends.
  */
-export function buildDoctorPortalUrl(username: string, host?: string): string {
-  const name = (username || "").trim().toLowerCase();
+export function buildPortalUrl(subdomain: string, host?: string): string {
+  const name = (subdomain || "").trim().toLowerCase();
   if (!name) return "/";
   const current =
     host ??
@@ -53,4 +54,9 @@ export function buildDoctorPortalUrl(username: string, host?: string): string {
     process.env.NEXT_PUBLIC_ROOT_DOMAIN?.split(":")[0].trim().toLowerCase().replace(/^\./, "") ||
     (parts.length >= 3 ? parts.slice(1).join(".") : hostname);
   return `${proto}//${encodeURIComponent(name)}.${root}${port}`;
+}
+
+/** Doctor-specific alias — same subdomain mechanics as {@link buildPortalUrl}. */
+export function buildDoctorPortalUrl(username: string, host?: string): string {
+  return buildPortalUrl(username, host);
 }

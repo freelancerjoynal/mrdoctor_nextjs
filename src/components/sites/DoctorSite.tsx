@@ -135,9 +135,9 @@ export function DoctorSite({
       ? toBn(ratingSummary.average.toFixed(1))
       : doctorDemo.rating;
 
-  // Hero portrait + logos: DB profile picture, else gender-based avatar.
-  const portrait = doctorPortrait(doctor?.profilePicture, doctor?.gender);
-  const avatarFallback = fallbackAvatar(doctor?.gender);
+  // Hero portrait + logos: DB profile picture, else the global bundled avatar.
+  const portrait = doctorPortrait(doctor?.profilePicture);
+  const avatarFallback = fallbackAvatar();
 
   const degreeChips = degree
     .split(",")
