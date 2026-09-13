@@ -45,6 +45,8 @@ interface ConfirmedRow {
   bookingType: "ONLINE" | "OFFLINE";
   status: string;
   servedAt?: string | null;
+  createdBy?: string | null;
+  createdByName?: string | null;
   collectionAmount?: number | null;
   paymentAmount?: number | null;
   amount: number;
@@ -52,6 +54,28 @@ interface ConfirmedRow {
   orderId?: string | null;
   paymentMethod?: string | null;
   paymentStatus?: string | null;
+}
+
+interface StaffBucket {
+  userId: string;
+  name: string;
+  count: number;
+  total: number;
+  confirmedCount: number;
+  confirmedTotal: number;
+  servedCount: number;
+  servedTotal: number;
+}
+
+interface StaffRow {
+  id: string;
+  serial: number;
+  patientName: string;
+  contactPhone: string;
+  problem: string;
+  appointmentDate: string;
+  served: boolean;
+  amount: number;
 }
 
 interface DoctorInfo {
@@ -212,12 +236,48 @@ async function profileApi(): Promise<DoctorInfo | null> {
   return data?.profile?.staffDoctor ?? data?.profile?.doctorProfile ?? null;
 }
 
+/** Per-taker OFFLINE (cash) totals for the range. */
+async function staffApi(range: MainTab): Promise<StaffBucket[]> {
+  const res = await apiFetch(`/api/backend/api/users/appointments/staff-collections?range=${range}`);
+  const data = (await res.json().catch(() => null)) as {
+    data?: StaffBucket[];
+    error?: string;
+  } | null;
+  if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
+  return Array.isArray(data?.data) ? (data?.data ?? []) : [];
+}
+
+/** OFFLINE rows taken by one staff in the range. */
+async function staffRowsApi(
+  range: MainTab,
+  userId: string,
+): Promise<{ name: string; confirmed: StaffRow[]; served: StaffRow[] }> {
+  const res = await apiFetch(
+    `/api/backend/api/users/appointments/staff-collections/rows?range=${range}&userId=${encodeURIComponent(userId)}&limit=100`,
+  );
+  const data = (await res.json().catch(() => null)) as {
+    data?: { name: string; confirmed: StaffRow[]; served: StaffRow[] };
+    error?: string;
+  } | null;
+  if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
+  return {
+    name: data?.data?.name ?? "স্টাফ",
+    confirmed: Array.isArray(data?.data?.confirmed) ? (data?.data?.confirmed ?? []) : [],
+    served: Array.isArray(data?.data?.served) ? (data?.data?.served ?? []) : [],
+  };
+}
+
 /** Confirmed-only work panel: day tabs × type tabs, daily serials, new-booking popup. */
 export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }) {
   void _isDoctor;
   const [summary, setSummary] = useState<Summary | null>(null);
   const [collection, setCollection] = useState<CollectionSummary | null>(null);
   const [doctor, setDoctor] = useState<DoctorInfo | null>(null);
+  const [staffCols, setStaffCols] = useState<StaffBucket[]>([]);
+  const [staffView, setStaffView] = useState<{ userId: string; name: string } | null>(null);
+  const [staffRows, setStaffRows] = useState<{ name: string; confirmed: StaffRow[]; served: StaffRow[] } | null>(null);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffErr, setStaffErr] = useState("");
   const [rows, setRows] = useState<ConfirmedRow[]>([]);
   const [counts, setCounts] = useState<Record<MainTab, number>>({ today: 0, tomorrow: 0, last30: 0 });
   const [mainTab, setMainTab] = useState<MainTab>("today");
@@ -258,6 +318,10 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     setCounts(await confirmedCountsApi());
   }, []);
 
+  const loadStaff = useCallback(async (main: MainTab) => {
+    setStaffCols(await staffApi(main).catch(() => []));
+  }, []);
+
   const loadList = useCallback(async (main: MainTab, sub: SubTab) => {
     if (sub === "DONE") {
       const { rows } = await servedApi(main);
@@ -283,6 +347,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         await Promise.all([
           loadList(main, sub),
           loadCounts(),
+          loadStaff(main),
           summaryApi().then(setSummary).catch(() => {}),
           collectionApi().then(setCollection).catch(() => {}),
         ]);
@@ -292,18 +357,19 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         setLoading(false);
       }
     },
-    [loadCounts, loadList],
+    [loadCounts, loadList, loadStaff],
   );
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [{ rows, counts }, s, c, d] = await Promise.all([
+        const [{ rows, counts }, s, c, d, sc] = await Promise.all([
           confirmedApi("?range=today&bookingType=ALL&limit=50"),
           summaryApi().catch(() => null),
           collectionApi().catch(() => null),
           profileApi().catch(() => null),
+          staffApi("today").catch(() => []),
         ]);
         if (cancelled) return;
         setRows(rows);
@@ -317,6 +383,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         if (s) setSummary(s);
         if (c) setCollection(c);
         if (d) setDoctor(d);
+        setStaffCols(sc);
       } catch (err: unknown) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
@@ -334,6 +401,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   useEffect(() => {
     const tick = () => {
       loadCounts().catch(() => {});
+      loadStaff(mainTab).catch(() => {});
       collectionApi()
         .then((c) => setCollection(c))
         .catch(() => {});
@@ -347,7 +415,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       clearInterval(id);
       window.removeEventListener("focus", tick);
     };
-  }, [loadCounts]);
+  }, [loadCounts, loadStaff, mainTab]);
 
   // Last-30-days list grouped by day (only days that have rows appear).
   const dayGroups = useMemo(() => {
@@ -366,8 +434,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const switchMain = (t: MainTab) => {
     setMainTab(t);
     setSelected(null);
+    setStaffView(null);
+    setStaffRows(null);
     setLoading(true);
     setError("");
+    loadStaff(t).catch(() => {});
     loadList(t, subTab)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "লোড করা যায়নি।"))
       .finally(() => setLoading(false));
@@ -383,10 +454,25 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       .finally(() => setLoading(false));
   };
 
-  // After a popup booking: refresh the list quietly but keep the popup open
-  // so staff can read the SMS receipt before closing it manually.
+  // After a popup booking: close the popup, refresh the list quietly,
+  // and leave a success banner so staff sees the confirmation.
   const onBooked = () => {
+    setBookingOpen(false);
+    setActionErr("");
+    setActionMsg("✓ নতুন বুকিং সম্পন্ন — তালিকায় যোগ হয়েছে।");
     void refresh(mainTab, subTab, true);
+  };
+
+  /** Open one taker's cash card → load their rows for this range. */
+  const openStaff = (bucket: StaffBucket) => {
+    setStaffView({ userId: bucket.userId, name: bucket.name });
+    setStaffRows(null);
+    setStaffErr("");
+    setStaffLoading(true);
+    staffRowsApi(mainTab, bucket.userId)
+      .then(setStaffRows)
+      .catch((err: unknown) => setStaffErr(err instanceof Error ? err.message : "লোড করা যায়নি।"))
+      .finally(() => setStaffLoading(false));
   };
 
   /** Service-done / delete / cancel-request from the confirm popup. */
@@ -540,6 +626,33 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       {error && (
         <p className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">{error}</p>
       )}
+      {staffCols.length > 0 && (
+        <section>
+          <p className="mb-2 px-1 text-sm font-black text-slate-800">
+            💵 ক্যাশ কালেকশন — কে কত নিয়েছে (অফলাইন)
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            {staffCols.map((b) => (
+              <button
+                key={b.userId}
+                type="button"
+                onClick={() => openStaff(b)}
+                title={`${b.name}-এর বুকিং দেখুন`}
+                className="rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 p-4 text-left text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl sm:p-5"
+              >
+                <p className="truncate text-sm font-black">🧾 {b.name}</p>
+                <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{taka(b.total)}</p>
+                <p className="mt-0.5 text-xs font-bold text-white/90">
+                  {toBn(b.count)} জন · বাকি {toBn(b.confirmedCount)} · সম্পন্ন {toBn(b.servedCount)}
+                </p>
+                <p className="mt-1.5 text-[11px] font-black text-white underline decoration-white/50 underline-offset-4">
+                  বুকিং দেখুন 👆
+                </p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {actionMsg && (
         <p className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200">
           {actionMsg}
@@ -683,6 +796,9 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
               <dl className="mt-4 space-y-2.5 rounded-2xl bg-slate-50 p-4 text-sm ring-1 ring-slate-100">
                 <DetailRow label="মোবাইল" value={selected.contactPhone} />
                 <DetailRow label="আদায়" value={taka(selected.amount ?? 0)} strong />
+                {selected.createdByName && (
+                  <DetailRow label="বুকিং নিয়েছেন" value={selected.createdByName} />
+                )}
                 <DetailRow label="সমস্যা" value={selected.problem} />
                 {selected.dayLabel && <DetailRow label="তারিখ" value={selected.dayLabel} />}
                 {selected.chamberName && <DetailRow label="চেম্বার" value={selected.chamberName} />}
@@ -697,6 +813,68 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                   </>
                 )}
               </dl>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ---------- Staff cash popup (their bookings in this range) ---------- */}
+      <AnimatePresence>
+        {staffView && (
+          <motion.div
+            className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+            onClick={() => !staffLoading && setStaffView(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${staffView.name}-এর বুকিং`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div
+              className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 48, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 32, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0 truncate text-lg font-black text-slate-900">
+                  🧾 {staffRows?.name ?? staffView.name}
+                </p>
+                <button
+                  onClick={() => setStaffView(null)}
+                  aria-label="বন্ধ করুন"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+              {staffLoading ? (
+                <p className="mt-4 rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500 ring-1 ring-slate-100">
+                  লোড হচ্ছে…
+                </p>
+              ) : staffErr ? (
+                <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">
+                  {staffErr}
+                </p>
+              ) : staffRows ? (
+                <div className="mt-3 space-y-4">
+                  <StaffRowGroup
+                    title={`⏳ বাকি (${toBn(staffRows.confirmed.length)} জন · ${taka(staffRows.confirmed.reduce((s, r) => s + (r.amount ?? 0), 0))})`}
+                    rows={staffRows.confirmed}
+                    empty="কোনো বাকি বুকিং নেই।"
+                  />
+                  <StaffRowGroup
+                    title={`✓ সেবা সম্পন্ন (${toBn(staffRows.served.length)} জন · ${taka(staffRows.served.reduce((s, r) => s + (r.amount ?? 0), 0))})`}
+                    rows={staffRows.served}
+                    empty="কোনো সম্পন্ন বুকিং নেই।"
+                    done
+                  />
+                </div>
+              ) : null}
             </motion.div>
           </motion.div>
         )}
@@ -996,11 +1174,13 @@ function HoverAction({
   label,
   onClick,
   className,
+  disabled = false,
   children,
 }: {
   label: string;
   onClick: () => void;
   className: string;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -1009,11 +1189,12 @@ function HoverAction({
         type="button"
         title={label}
         aria-label={label}
+        disabled={disabled}
         onClick={(e) => {
           e.stopPropagation();
           onClick();
         }}
-        className={`flex h-9 w-9 items-center justify-center rounded-xl ring-1 transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 ${className}`}
+        className={`flex h-9 w-9 items-center justify-center rounded-xl ring-1 transition active:translate-y-0 ${disabled ? "cursor-not-allowed opacity-40" : "hover:-translate-y-0.5 hover:shadow-md"} ${className}`}
       >
         {children}
       </button>
@@ -1039,6 +1220,12 @@ function AppointmentRow({
   onEdit: () => void;
   onCancel: () => void;
 }) {
+  // Future-dated (e.g. tomorrow's) bookings can't be marked served today.
+  const ad = new Date(r.appointmentDate);
+  const now = new Date();
+  const future =
+    new Date(ad.getFullYear(), ad.getMonth(), ad.getDate()).getTime() >
+    new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   return (
     <li className="flex w-full items-center gap-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100 transition hover:shadow-md sm:gap-3 sm:p-4">
       <button
@@ -1069,8 +1256,9 @@ function AppointmentRow({
       ) : (
         <span className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <HoverAction
-            label="সেবা সম্পন্ন"
+            label={future ? "আগামীর বুকিং — আজ সেবা দেওয়া যাবে না" : "সেবা সম্পন্ন"}
             onClick={onDone}
+            disabled={future}
             className="bg-emerald-600 text-white ring-emerald-600 hover:bg-emerald-700"
           >
             <CheckIcon />
@@ -1102,6 +1290,53 @@ function AppointmentRow({
         </span>
       )}
     </li>
+  );
+}
+
+function StaffRowGroup({
+  title,
+  rows,
+  empty,
+  done = false,
+}: {
+  title: string;
+  rows: StaffRow[];
+  empty: string;
+  done?: boolean;
+}) {
+  return (
+    <section>
+      <p className="mb-1.5 px-1 text-sm font-black text-slate-700">{title}</p>
+      {rows.length === 0 ? (
+        <p className="rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-400 ring-1 ring-slate-100">
+          {empty}
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {rows.map((r) => (
+            <li
+              key={`${done ? "s" : "c"}-${r.id}`}
+              className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100"
+            >
+              <span
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-black text-white ${
+                  done ? "bg-emerald-600" : "bg-amber-500"
+                }`}
+              >
+                {toBn(r.serial || 0)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-black text-slate-900">{r.patientName}</span>
+                <span className="block truncate text-xs text-slate-500">
+                  📞 {r.contactPhone} · {bnDateLabel(String(r.appointmentDate).slice(0, 10))}
+                </span>
+              </span>
+              <span className="shrink-0 text-sm font-black text-emerald-700">{taka(r.amount ?? 0)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
