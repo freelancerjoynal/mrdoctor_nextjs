@@ -26,7 +26,7 @@ async function collectionApi(): Promise<CollectionSummary> {
   return data?.data as CollectionSummary;
 }
 
-/** Home collection boxes — same confirmed-based source as the appointments page. */
+/** Home collection boxes — served-appointments income ledger. */
 export function DashboardCollections({ isDoctor }: { isDoctor: boolean }) {
   const router = useRouter();
   const [collection, setCollection] = useState<CollectionSummary | null>(null);
@@ -77,10 +77,11 @@ export function DashboardCollections({ isDoctor }: { isDoctor: boolean }) {
       )}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <CollectionCard
-          label="আজ আদায়"
+          label="আজকের মোট আয়"
           hint={collection ? `আজ · ${bnDateLabel(collection.today)}` : "অপেক্ষা করুন"}
           bucket={collection?.todayBox}
           loading={loading}
+          tone="today"
         />
         <CollectionCard
           label="সাপ্তাহিক আয়"
@@ -91,6 +92,9 @@ export function DashboardCollections({ isDoctor }: { isDoctor: boolean }) {
           }
           bucket={collection?.week}
           loading={loading}
+          tone="week"
+          onClick={() => router.push("/dashboard/weekly")}
+          actionLabel="সপ্তাহের প্রতিদিন দেখুন 👆"
         />
         {isDoctor && (
           <>
@@ -103,6 +107,7 @@ export function DashboardCollections({ isDoctor }: { isDoctor: boolean }) {
               }
               bucket={collection?.month}
               loading={loading}
+              tone="month"
               onClick={() => router.push("/dashboard/monthly")}
               actionLabel="প্রতিদিনের হিসাব দেখুন 👆"
             />
@@ -111,6 +116,7 @@ export function DashboardCollections({ isDoctor }: { isDoctor: boolean }) {
               hint={collection?.lifetime ? `যোগদান ${bnDateLabel(collection.lifetime.joinedAt)} থেকে` : "অপেক্ষা করুন"}
               bucket={collection?.lifetime}
               loading={loading}
+              tone="lifetime"
             />
           </>
         )}

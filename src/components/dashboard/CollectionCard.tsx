@@ -18,7 +18,16 @@ export interface CollectionBucket {
   offline: ChannelBucket;
 }
 
-/** Shared collection box: total + patient count + online/offline split. */
+export type CollectionTone = "today" | "week" | "month" | "lifetime";
+
+const TONES: Record<CollectionTone, { bg: string; pill: string; emoji: string }> = {
+  today: { bg: "from-emerald-500 via-emerald-600 to-teal-600", pill: "bg-white/20 text-white", emoji: "💰" },
+  week: { bg: "from-sky-500 via-blue-600 to-indigo-600", pill: "bg-white/20 text-white", emoji: "📊" },
+  month: { bg: "from-amber-500 via-orange-500 to-rose-500", pill: "bg-white/20 text-white", emoji: "🗓️" },
+  lifetime: { bg: "from-violet-500 via-purple-600 to-fuchsia-600", pill: "bg-white/20 text-white", emoji: "🏆" },
+};
+
+/** Shared collection box: big colorful total + patient count + online/offline split. */
 export function CollectionCard({
   label,
   hint,
@@ -26,6 +35,7 @@ export function CollectionCard({
   loading,
   onClick,
   actionLabel,
+  tone = "today",
 }: {
   label: string;
   hint?: string;
@@ -33,23 +43,27 @@ export function CollectionCard({
   loading: boolean;
   onClick?: () => void;
   actionLabel?: string;
+  tone?: CollectionTone;
 }) {
+  const t = TONES[tone];
   const inner = (
     <>
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+      <p className="flex items-center gap-1.5 text-sm font-black uppercase tracking-wide text-white/85">
+        <span aria-hidden="true">{t.emoji}</span> {label}
+      </p>
+      <p className="mt-1 text-3xl font-black tracking-tight text-white drop-shadow-sm sm:text-4xl">
         {loading || bucket === undefined ? "…" : bucket === null ? "—" : taka(bucket.total)}
       </p>
       {bucket && (
         <>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {toBn(bucket.count)} জন{hint ? ` · ${hint}` : ""}
+          <p className="mt-1 text-sm font-bold text-white/90">
+            👥 {toBn(bucket.count)} জন{hint ? ` · ${hint}` : ""}
           </p>
-          <p className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold">
-            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">
+          <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-black">
+            <span className={`rounded-full px-2.5 py-1 ${t.pill}`}>
               অনলাইন {taka(bucket.online.total)} · {toBn(bucket.online.count)}
             </span>
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">
+            <span className={`rounded-full px-2.5 py-1 ${t.pill}`}>
               অফলাইন {taka(bucket.offline.total)} · {toBn(bucket.offline.count)}
             </span>
           </p>
@@ -57,19 +71,30 @@ export function CollectionCard({
       )}
     </>
   );
+  const cls = `relative overflow-hidden rounded-2xl bg-gradient-to-br ${t.bg} p-5 text-left shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl sm:rounded-3xl sm:p-6`;
+  const decor = (
+    <>
+      <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/20 blur-2xl" />
+      <div className="pointer-events-none absolute -bottom-12 -left-8 h-28 w-28 rounded-full bg-black/10 blur-2xl" />
+    </>
+  );
   if (!onClick) {
     return (
-      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:p-5">{inner}</div>
+      <div className={cls}>
+        {decor}
+        <div className="relative">{inner}</div>
+      </div>
     );
   }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-lg sm:p-5"
-    >
-      {inner}
-      <p className="mt-1 text-[11px] font-bold text-emerald-700">{actionLabel ?? "বিস্তারিত 👆"}</p>
+    <button type="button" onClick={onClick} className={`${cls} cursor-pointer`}>
+      {decor}
+      <div className="relative">
+        {inner}
+        <p className="mt-2 text-xs font-black text-white underline decoration-white/50 underline-offset-4">
+          {actionLabel ?? "বিস্তারিত 👆"}
+        </p>
+      </div>
     </button>
   );
 }
