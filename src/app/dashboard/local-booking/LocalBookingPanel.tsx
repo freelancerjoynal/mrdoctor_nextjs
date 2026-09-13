@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toBn } from "@/lib/bn";
 
 interface BookingResult {
@@ -12,9 +12,27 @@ interface BookingResult {
   dayLabel?: string | null;
 }
 
-function isoToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+interface ChamberOption {
+  id: string;
+  name: string;
+  area: string;
+}
+
+interface ScheduleOption {
+  dayOfWeek: string;
+  chamberId: string | null;
+}
+
+interface DayOption {
+  date: string;
+  dayOfWeek: string;
+  label: string;
+}
+
+interface LocalOptions {
+  chambers: ChamberOption[];
+  schedules: ScheduleOption[];
+  days: DayOption[];
 }
 
 /** Staff walk-in booking: OFFLINE ConfirmedAppointment + SMS receipt to patient. */
@@ -23,15 +41,72 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
   const [phone, setPhone] = useState("");
   const [patientType, setPatientType] = useState<"NEW" | "RENEW">("NEW");
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(() => isoToday());
   const [age, setAge] = useState("");
   const [area, setArea] = useState("");
+
+  const [options, setOptions] = useState<LocalOptions | null>(null);
+  const [optionsError, setOptionsError] = useState("");
+  const [chamberId, setChamberId] = useState("");
+  const [date, setDate] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [smsSent, setSmsSent] = useState<boolean | null>(null);
   const [lastBooking, setLastBooking] = useState<BookingResult | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/backend/api/users/appointments/local-options")
+      .then(async (res) => {
+        if (!res.ok) throw new Error("load");
+        const json = (await res.json()) as { data: LocalOptions };
+        if (cancelled) return;
+        setOptions(json.data);
+        if (json.data.chambers.length === 1 && json.data.chambers[0]) {
+          setChamberId(json.data.chambers[0].id);
+        }
+        if (json.data.days.length > 0 && json.data.days[0]) {
+          setDate(json.data.days[0].date);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOptionsError("বুকিং অপশন লোড করা যায়নি। আবার চেষ্টা করুন।");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Date options follow the chosen chamber: today + tomorrow max, only days
+  // this chamber runs (chamber-bound schedules win, else the doctor's roster).
+  const visibleDays = useMemo(() => {
+    if (!options) return [];
+    const own = chamberId
+      ? options.schedules.filter(
+          (s) => (s.chamberId || "").toLowerCase() === chamberId.toLowerCase(),
+        )
+      : [];
+    const relevant = own.length > 0 ? own : options.schedules;
+    if (relevant.length === 0) return options.days.slice(0, 2);
+    const running = new Set(relevant.map((s) => String(s.dayOfWeek).toUpperCase()));
+    return options.days
+      .filter((d) => running.has(String(d.dayOfWeek).toUpperCase()))
+      .slice(0, 2);
+  }, [options, chamberId]);
+
+  // Keep the picked date inside the visible (chamber-aware) options.
+  useEffect(() => {
+    if (!options) return;
+    if (visibleDays.length === 0) {
+      setDate("");
+      return;
+    }
+    if (!visibleDays.some((d) => d.date === date)) {
+      const first = visibleDays[0];
+      if (first) setDate(first.date);
+    }
+  }, [options, visibleDays, date]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +129,18 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
       setError("সঠিক আদায়ের টাকা দিন।");
       return;
     }
+    if (options && options.chambers.length > 1 && !chamberId) {
+      setError("চেম্বার বেছে নিন।");
+      return;
+    }
+    if (visibleDays.length === 0) {
+      setError("এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।");
+      return;
+    }
+    if (!date) {
+      setError("তারিখ বেছে নিন (আজ / আগামীকাল)।");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -65,7 +152,8 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
           phone: phone.trim(),
           patientType,
           collectionAmount: taka,
-          date: date || undefined,
+          date,
+          chamberId: chamberId || undefined,
           age: age.trim() === "" ? undefined : Number(age),
           area: area.trim() || undefined,
         }),
@@ -102,6 +190,9 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
         <p className="mt-1 text-sm text-slate-500">
           সরাসরি আসা রোগীর বুকিং করুন — সেভ হলেই রোগীর ফোনে SMS যাবে।
         </p>
+        {optionsError && (
+          <p className="mt-3 text-sm font-bold text-red-600">{optionsError}</p>
+        )}
         <form onSubmit={submit} className="mt-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
@@ -164,16 +255,54 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
             </label>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {options && options.chambers.length > 1 && (
             <label className="block">
-              <span className="mb-1 block text-sm font-bold text-slate-600">তারিখ</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+              <span className="mb-1 block text-sm font-bold text-slate-600">চেম্বার *</span>
+              <select
+                value={chamberId}
+                onChange={(e) => setChamberId(e.target.value)}
                 className={inputCls}
-              />
+              >
+                <option value="">— বেছে নিন —</option>
+                {options.chambers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.area ? ` — ${c.area}` : ""}
+                  </option>
+                ))}
+              </select>
             </label>
+          )}
+
+          <div>
+            <span className="mb-1 block text-sm font-bold text-slate-600">তারিখ *</span>
+            {visibleDays.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {visibleDays.map((d) => (
+                  <button
+                    key={d.date}
+                    type="button"
+                    onClick={() => setDate(d.date)}
+                    className={`rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
+                      date === d.date
+                        ? "bg-emerald-600 text-white ring-emerald-600"
+                        : "bg-white text-slate-600 ring-slate-200 hover:ring-emerald-300"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+                {options
+                  ? "এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।"
+                  : "তারিখ লোড হচ্ছে…"}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm font-bold text-slate-600">বয়স (ঐচ্ছিক)</span>
               <input

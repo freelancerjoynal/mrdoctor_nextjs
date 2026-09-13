@@ -114,6 +114,36 @@ export function AppointmentForm({
     return chambers.length === 1 ? chambers[0] ?? null : null;
   }, [chambers, chamberId]);
 
+  // Date options follow the chosen chamber: today + tomorrow max, only days
+  // this chamber runs (chamber-bound schedules win, else the doctor's roster).
+  const visibleDays = useMemo(() => {
+    if (!options) return [];
+    const own = selectedChamber
+      ? options.schedules.filter(
+          (s) => (s.chamberId || "").toLowerCase() === selectedChamber.id.toLowerCase(),
+        )
+      : [];
+    const relevant = own.length > 0 ? own : options.schedules;
+    if (relevant.length === 0) return options.days.slice(0, 2);
+    const running = new Set(relevant.map((s) => String(s.dayOfWeek).toUpperCase()));
+    return options.days
+      .filter((d) => running.has(String(d.dayOfWeek).toUpperCase()))
+      .slice(0, 2);
+  }, [options, selectedChamber]);
+
+  // Keep the picked date inside the visible (chamber-aware) options.
+  useEffect(() => {
+    if (!options) return;
+    if (visibleDays.length === 0) {
+      setDate("");
+      return;
+    }
+    if (!visibleDays.some((d) => d.date === date)) {
+      const first = visibleDays[0];
+      if (first) setDate(first.date);
+    }
+  }, [options, visibleDays, date]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sending) return;
@@ -133,6 +163,10 @@ export function AppointmentForm({
     }
     if (chambers.length > 1 && !chamberId) {
       setError("কোন চেম্বারে দেখাতে চান বেছে নিন।");
+      return;
+    }
+    if (visibleDays.length === 0) {
+      setError("এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।");
       return;
     }
     if (!date) {
@@ -262,18 +296,24 @@ export function AppointmentForm({
           <label className={labelCls} htmlFor={`apt-date-${doctorUsername}`}>
             সাক্ষাতের তারিখ *
           </label>
-          <select
-            id={`apt-date-${doctorUsername}`}
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={inputCls}
-          >
-            {options.days.map((d) => (
-              <option key={d.date} value={d.date}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+          {visibleDays.length > 0 ? (
+            <select
+              id={`apt-date-${doctorUsername}`}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className={inputCls}
+            >
+              {visibleDays.map((d) => (
+                <option key={d.date} value={d.date}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+              এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।
+            </p>
+          )}
         </div>
 
         {chambers.length > 1 ? (
