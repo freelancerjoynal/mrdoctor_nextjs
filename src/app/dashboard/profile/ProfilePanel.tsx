@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/auth/apiFetch";
 
 async function profileApi(body: Record<string, string>) {
-  const res = await fetch("/api/backend/api/users/profile", {
+  const res = await apiFetch("/api/backend/api/users/profile", {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

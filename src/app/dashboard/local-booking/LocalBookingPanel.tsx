@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toBn } from "@/lib/bn";
+import { apiFetch } from "@/lib/auth/apiFetch";
 
 interface BookingResult {
   patientName: string;
@@ -57,7 +58,7 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/backend/api/users/appointments/local-options")
+    apiFetch("/api/backend/api/users/appointments/local-options")
       .then(async (res) => {
         if (!res.ok) throw new Error("load");
         const json = (await res.json()) as { data: LocalOptions };
@@ -144,7 +145,7 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/backend/api/users/appointments/local", {
+      const res = await apiFetch("/api/backend/api/users/appointments/local", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

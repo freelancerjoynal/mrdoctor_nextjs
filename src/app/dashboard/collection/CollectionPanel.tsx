@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toBn } from "@/lib/bn";
+import { apiFetch } from "@/lib/auth/apiFetch";
 
 interface Bucket {
   total: number;
@@ -58,8 +59,8 @@ export function CollectionPanel({ isDoctor }: { isDoctor: boolean }) {
     try {
       const q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
       const [sRes, lRes] = await Promise.all([
-        fetch(`/api/backend/api/users/appointments/summary${q}`),
-        fetch(`/api/backend/api/users/appointments${q}&status=DONE&limit=50`),
+        apiFetch(`/api/backend/api/users/appointments/summary${q}`),
+        apiFetch(`/api/backend/api/users/appointments${q}&status=DONE&limit=50`),
       ]);
       const sData = (await sRes.json().catch(() => null)) as {
         data?: { custom?: CustomBucket };

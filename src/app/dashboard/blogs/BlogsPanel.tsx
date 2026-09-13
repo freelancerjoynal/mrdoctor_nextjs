@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toBn } from "@/lib/bn";
+import { apiFetch } from "@/lib/auth/apiFetch";
 
 interface BlogRow {
   id: string;
@@ -22,7 +23,7 @@ const STATUS_BN: Record<BlogRow["status"], string> = {
 };
 
 async function blogApi(path: string, init?: RequestInit) {
-  const res = await fetch(`/api/backend/api/users/blogs${path}`, {
+  const res = await apiFetch(`/api/backend/api/users/blogs${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
   });

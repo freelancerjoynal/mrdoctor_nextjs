@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { apiFetch } from "@/lib/auth/apiFetch";
 
 interface StaffRow {
   id: string;
@@ -12,7 +13,7 @@ interface StaffRow {
 }
 
 async function staffApi(path: string, init?: RequestInit) {
-  const res = await fetch(`/api/backend/api/users/staff${path}`, {
+  const res = await apiFetch(`/api/backend/api/users/staff${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
   });

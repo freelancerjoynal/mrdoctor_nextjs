@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { toBn } from "@/lib/bn";
+import { toBn, bnDateLabel, BN_WEEKDAYS } from "@/lib/bn";
+import { apiFetch } from "@/lib/auth/apiFetch";
+import { CollectionCard, type CollectionBucket } from "@/components/dashboard/CollectionCard";
 import { LocalBookingPanel } from "../local-booking/LocalBookingPanel";
 
 type MainTab = "today" | "tomorrow" | "last30";
@@ -75,29 +78,70 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
 ];
 
 async function confirmedApi(path: string, init?: RequestInit) {
-  const res = await fetch(`/api/backend/api/users/appointments/confirmed${path}`, {
+  const res = await apiFetch(`/api/backend/api/users/appointments/confirmed${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
   });
   const data = (await res.json().catch(() => null)) as {
     data?: ConfirmedRow[];
     pagination?: { total?: number };
+    counts?: { today?: number; tomorrow?: number; last30?: number };
     error?: string;
   } | null;
   if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
-  return { rows: Array.isArray(data?.data) ? (data?.data ?? []) : [], total: data?.pagination?.total ?? 0 };
+  return {
+    rows: Array.isArray(data?.data) ? (data?.data ?? []) : [],
+    total: data?.pagination?.total ?? 0,
+    counts: data?.counts ?? null,
+  };
+}
+
+async function confirmedCountsApi(): Promise<Record<MainTab, number>> {
+  const res = await apiFetch("/api/backend/api/users/appointments/confirmed/counts");
+  const data = (await res.json().catch(() => null)) as {
+    data?: { today?: number; tomorrow?: number; last30?: number };
+    error?: string;
+  } | null;
+  if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
+  return {
+    today: data?.data?.today ?? 0,
+    tomorrow: data?.data?.tomorrow ?? 0,
+    last30: data?.data?.last30 ?? 0,
+  };
 }
 
 async function summaryApi(): Promise<Summary> {
-  const res = await fetch("/api/backend/api/users/appointments/summary");
+  const res = await apiFetch("/api/backend/api/users/appointments/summary");
   const data = (await res.json().catch(() => null)) as { data?: Summary; error?: string } | null;
   if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
   return data?.data as Summary;
 }
 
+interface CollectionSummary {
+  today: string;
+  todayBox: CollectionBucket;
+  week: { from: string; to: string } & CollectionBucket;
+  month:
+    | ({ year: number; month: number; name: string; from: string; to: string } & CollectionBucket)
+    | null;
+  lifetime: ({ joinedAt: string } & CollectionBucket) | null;
+}
+
+async function collectionApi(): Promise<CollectionSummary> {
+  const res = await apiFetch("/api/backend/api/users/appointments/collection/summary");
+  const data = (await res.json().catch(() => null)) as {
+    data?: CollectionSummary;
+    error?: string;
+  } | null;
+  if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
+  return data?.data as CollectionSummary;
+}
+
 /** Confirmed-only work panel: day tabs × type tabs, daily serials, new-booking popup. */
 export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
+  const router = useRouter();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [collection, setCollection] = useState<CollectionSummary | null>(null);
   const [rows, setRows] = useState<ConfirmedRow[]>([]);
   const [counts, setCounts] = useState<Record<MainTab, number>>({ today: 0, tomorrow: 0, last30: 0 });
   const [mainTab, setMainTab] = useState<MainTab>("today");
@@ -108,17 +152,19 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
   const [error, setError] = useState("");
 
   const loadCounts = useCallback(async () => {
-    const [t, m, l] = await Promise.all([
-      confirmedApi("?range=today&bookingType=ALL&limit=1"),
-      confirmedApi("?range=tomorrow&bookingType=ALL&limit=1"),
-      confirmedApi("?range=last30&bookingType=ALL&limit=1"),
-    ]);
-    setCounts({ today: t.total, tomorrow: m.total, last30: l.total });
+    setCounts(await confirmedCountsApi());
   }, []);
 
   const loadList = useCallback(async (main: MainTab, sub: SubTab) => {
-    const { rows } = await confirmedApi(`?range=${main}&bookingType=${sub}&limit=50`);
+    const { rows, counts } = await confirmedApi(`?range=${main}&bookingType=${sub}&limit=50`);
     setRows(rows);
+    if (counts) {
+      setCounts({
+        today: counts.today ?? 0,
+        tomorrow: counts.tomorrow ?? 0,
+        last30: counts.last30 ?? 0,
+      });
+    }
   }, []);
 
   const refresh = useCallback(
@@ -126,7 +172,12 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
       if (!quiet) setLoading(true);
       setError("");
       try {
-        await Promise.all([loadList(main, sub), loadCounts(), summaryApi().then(setSummary)]);
+        await Promise.all([
+          loadList(main, sub),
+          loadCounts(),
+          summaryApi().then(setSummary),
+          collectionApi().then(setCollection),
+        ]);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
       } finally {
@@ -140,17 +191,22 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
     let cancelled = false;
     (async () => {
       try {
-        const [{ rows }, t, m, l, s] = await Promise.all([
+        const [{ rows, counts }, s, c] = await Promise.all([
           confirmedApi("?range=today&bookingType=ALL&limit=50"),
-          confirmedApi("?range=today&bookingType=ALL&limit=1"),
-          confirmedApi("?range=tomorrow&bookingType=ALL&limit=1"),
-          confirmedApi("?range=last30&bookingType=ALL&limit=1"),
           summaryApi(),
+          collectionApi().catch(() => null),
         ]);
         if (cancelled) return;
         setRows(rows);
-        setCounts({ today: t.total, tomorrow: m.total, last30: l.total });
+        if (counts) {
+          setCounts({
+            today: counts.today ?? 0,
+            tomorrow: counts.tomorrow ?? 0,
+            last30: counts.last30 ?? 0,
+          });
+        }
         setSummary(s);
+        if (c) setCollection(c);
       } catch (err: unknown) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
@@ -162,6 +218,40 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
       cancelled = true;
     };
   }, []);
+
+  // Live counters: quietly re-pull tab counts + boxes every 30s and whenever
+  // the tab regains focus, so bookings from any device show up by themselves.
+  useEffect(() => {
+    const tick = () => {
+      loadCounts().catch(() => {});
+      collectionApi()
+        .then((c) => setCollection(c))
+        .catch(() => {});
+      summaryApi()
+        .then((s) => setSummary(s))
+        .catch(() => {});
+    };
+    const id = setInterval(tick, 30000);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", tick);
+    };
+  }, [loadCounts]);
+
+  // Last-30-days list grouped by day (only days that have rows appear).
+  const dayGroups = useMemo(() => {
+    if (mainTab !== "last30") return null;
+    const map = new Map<string, ConfirmedRow[]>();
+    for (const r of rows) {
+      const key = String(r.appointmentDate).slice(0, 10);
+      if (!key) continue;
+      const list = map.get(key);
+      if (list) list.push(r);
+      else map.set(key, [r]);
+    }
+    return [...map.entries()].map(([date, list]) => ({ date, list }));
+  }, [mainTab, rows]);
 
   const switchMain = (t: MainTab) => {
     setMainTab(t);
@@ -199,13 +289,22 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
               আজকের কালেকশন (সম্ভাব্য)
             </p>
             <p className="mt-1 text-3xl font-black tracking-tight sm:text-5xl">
-              {summary ? taka(summary.todayExpected.total) : "…"}
+              {collection ? taka(collection.todayBox.total) : summary ? taka(summary.todayExpected.total) : "…"}
             </p>
-            {summary && (
+            {collection ? (
               <p className="mt-2 text-sm text-white/85">
-                মোট {toBn(summary.todayExpected.count)} জন · নতুন {toBn(summary.todayExpected.newCount)} · পুরনো{" "}
-                {toBn(summary.todayExpected.renewCount)} · আদায় {taka(summary.todayDone.total)}
+                মোট {toBn(collection.todayBox.count)} জন · অনলাইন{" "}
+                {taka(collection.todayBox.online.total)} · অফলাইন{" "}
+                {taka(collection.todayBox.offline.total)} · আদায় {taka(collection.todayBox.total)}
               </p>
+            ) : (
+              summary && (
+                <p className="mt-2 text-sm text-white/85">
+                  মোট {toBn(summary.todayExpected.count)} জন · নতুন{" "}
+                  {toBn(summary.todayExpected.newCount)} · পুরনো{" "}
+                  {toBn(summary.todayExpected.renewCount)} · আদায় {taka(summary.todayDone.total)}
+                </p>
+              )
             )}
           </div>
           <button
@@ -221,14 +320,40 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
         <p className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">{error}</p>
       )}
 
-      {/* ---------- Income buckets ---------- */}
+      {/* ---------- Collection boxes: total + online/offline split ---------- */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <IncomeCard label="আজ আদায়" bucket={summary?.todayDone} loading={!summary} />
-        <IncomeCard label="সাপ্তাহিক আয়" hint="গত ৭ দিন" bucket={summary?.week} loading={!summary} />
+        <CollectionCard
+          label="আজ আদায়"
+          hint={collection ? `আজ · ${bnDateLabel(collection.today)}` : "অপেক্ষা করুন"}
+          bucket={collection?.todayBox}
+          loading={!collection}
+        />
+        <CollectionCard
+          label="সাপ্তাহিক আয়"
+          hint={
+            collection
+              ? `সোম–রবি · ${bnDateLabel(collection.week.from)} → ${bnDateLabel(collection.week.to)}`
+              : "অপেক্ষা করুন"
+          }
+          bucket={collection?.week}
+          loading={!collection}
+        />
         {isDoctor && (
           <>
-            <IncomeCard label="মাসিক আয়" hint="গত ৩০ দিন" bucket={summary?.month} loading={!summary} />
-            <IncomeCard label="সর্বমোট আয়" hint="সবসময়" bucket={summary?.lifetime} loading={!summary} />
+            <CollectionCard
+              label="মাসিক আয়"
+              hint={collection?.month ? `${collection.month.name} · ১–${toBn(collection.month.to.split("-")[2] ?? "")} তারিখ` : "অপেক্ষা করুন"}
+              bucket={collection?.month}
+              loading={!collection}
+              onClick={() => router.push("/dashboard/monthly")}
+              actionLabel="প্রতিদিনের হিসাব দেখুন 👆"
+            />
+            <CollectionCard
+              label="সর্বমোট আয়"
+              hint={collection?.lifetime ? `যোগদান ${bnDateLabel(collection.lifetime.joinedAt)} থেকে` : "অপেক্ষা করুন"}
+              bucket={collection?.lifetime}
+              loading={!collection}
+            />
           </>
         )}
       </section>
@@ -263,38 +388,35 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
         ))}
       </div>
 
-      {/* ---------- Rows with daily serial ---------- */}
+      {/* ---------- Rows with daily serial (last30 grouped by day) ---------- */}
       {loading ? (
         <p className="rounded-2xl bg-white p-8 text-center text-slate-500 ring-1 ring-slate-100">লোড হচ্ছে…</p>
       ) : rows.length === 0 ? (
         <p className="rounded-2xl bg-white p-8 text-center text-slate-500 ring-1 ring-slate-100">
           এই তালিকায় কিছু নেই।
         </p>
+      ) : dayGroups ? (
+        <div className="space-y-5">
+          {dayGroups.map((g) => (
+            <section key={g.date}>
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 px-1">
+                <p className="text-sm font-black text-slate-800">📅 {dayHeader(g.date)}</p>
+                <p className="text-xs font-bold text-slate-500">
+                  {toBn(g.list.length)} জন · {taka(g.list.reduce((s, r) => s + (r.amount ?? 0), 0))}
+                </p>
+              </div>
+              <ul className="space-y-2">
+                {g.list.map((r) => (
+                  <AppointmentRow key={r.id} r={r} onPick={setSelected} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       ) : (
         <ul className="space-y-2">
           {rows.map((r) => (
-            <li key={r.id}>
-              <button
-                onClick={() => setSelected(r)}
-                className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-lg font-black text-white">
-                  {toBn(r.serial || 0)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-black text-slate-900">{r.patientName}</span>
-                  <span className="block truncate text-sm text-slate-500">📞 {r.contactPhone}</span>
-                </span>
-                <span className="shrink-0 text-right">
-                  <span className="block font-black text-emerald-700">{taka(r.amount ?? 0)}</span>
-                  <span
-                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${TYPE_CLS[r.bookingType]}`}
-                  >
-                    {TYPE_BN[r.bookingType]}
-                  </span>
-                </span>
-              </button>
-            </li>
+            <AppointmentRow key={r.id} r={r} onPick={setSelected} />
           ))}
         </ul>
       )}
@@ -412,6 +534,39 @@ export function AppointmentsPanel({ isDoctor }: { isDoctor: boolean }) {
   );
 }
 
+function dayHeader(dateIso: string): string {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  const wd = BN_WEEKDAYS[new Date(y!, m! - 1, d!).getDay()] ?? "";
+  return `${bnDateLabel(dateIso)} · ${wd}`;
+}
+
+function AppointmentRow({ r, onPick }: { r: ConfirmedRow; onPick: (r: ConfirmedRow) => void }) {
+  return (
+    <li>
+      <button
+        onClick={() => onPick(r)}
+        className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-md"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-lg font-black text-white">
+          {toBn(r.serial || 0)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-black text-slate-900">{r.patientName}</span>
+          <span className="block truncate text-sm text-slate-500">📞 {r.contactPhone}</span>
+        </span>
+        <span className="shrink-0 text-right">
+          <span className="block font-black text-emerald-700">{taka(r.amount ?? 0)}</span>
+          <span
+            className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${TYPE_CLS[r.bookingType]}`}
+          >
+            {TYPE_BN[r.bookingType]}
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function DetailRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
@@ -423,27 +578,3 @@ function DetailRow({ label, value, strong = false }: { label: string; value: str
   );
 }
 
-function IncomeCard({
-  label,
-  hint,
-  bucket,
-  loading,
-}: {
-  label: string;
-  hint?: string;
-  bucket?: { total: number; count: number } | null;
-  loading: boolean;
-}) {
-  return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:p-5">
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
-        {loading || bucket === undefined ? "…" : bucket === null ? "—" : taka(bucket.total)}
-      </p>
-      <p className="mt-0.5 text-xs text-slate-500">
-        {hint ?? ""}
-        {bucket ? ` · ${toBn(bucket.count)} জন` : ""}
-      </p>
-    </div>
-  );
-}

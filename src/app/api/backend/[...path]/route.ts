@@ -7,28 +7,98 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
  * Forwards browser cookies; re-hosts backend Set-Cookie as Next.js cookies
  * so access/refresh tokens stay httpOnly on this domain.
  */
+function pickCookie(header: string, name: string): string | null {
+  const m = header.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  const v = m?.[1]?.trim();
+  return v ? v : null;
+}
+
+async function forward(
+  target: string,
+  req: Request,
+  body: string | undefined,
+  cookie: string,
+) {
+  return fetch(target, {
+    method: req.method,
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: cookie,
+    },
+    body,
+    cache: "no-store",
+  });
+}
+
 async function proxy(req: Request, path: string[]) {
   const target = `${BACKEND_URL}/${path.join("/")}${new URL(req.url).search}`;
   const body =
     req.method === "GET" || req.method === "HEAD"
       ? undefined
       : await req.text();
+  const incomingCookie = req.headers.get("cookie") ?? "";
+  const isAuthCall = path[0] === "api" && path[1] === "auth";
 
-  const backendRes = await fetch(target, {
-    method: req.method,
-    headers: {
-      "Content-Type": "application/json",
-      Cookie: req.headers.get("cookie") ?? "",
-    },
-    body,
-    cache: "no-store",
-  });
+  let backendRes = await forward(target, req, body, incomingCookie);
+  let freshAccess: string | null = null;
+
+  // Access token expired mid-session: one silent refresh + single retry.
+  // Refresh rejected (401/403) → dead session: drop both cookies here so
+  // the client goes to /login instead of error-looping.
+  // Backend unreachable (restarts) → return the original response untouched.
+  if (backendRes.status === 401 && !isAuthCall && pickCookie(incomingCookie, "refreshToken")) {
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: incomingCookie },
+        body: "{}",
+        cache: "no-store",
+      });
+      if (r.ok) {
+        const jd = (await r.json().catch(() => null)) as { accessToken?: unknown } | null;
+        if (typeof jd?.accessToken === "string" && jd.accessToken) {
+          freshAccess = jd.accessToken;
+          const refresh = pickCookie(incomingCookie, "refreshToken")!;
+          backendRes = await forward(
+            target,
+            req,
+            body,
+            `accessToken=${freshAccess}; refreshToken=${refresh}`,
+          );
+        }
+      } else if (r.status === 401 || r.status === 403) {
+        const dead = NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+        dead.cookies.delete("accessToken");
+        dead.cookies.delete("refreshToken");
+        return dead;
+      }
+    } catch {
+      /* backend unreachable — fall through with the original response */
+    }
+  }
 
   const data = await backendRes.text();
   const res = new NextResponse(data, {
     status: backendRes.status,
     headers: { "Content-Type": "application/json" },
   });
+
+  // Backend still says 401 and there is no refresh token to recover with
+  // (bad signature / rotated secret / partial clear): drop the dead access
+  // cookie so the client lands on /login instead of redirect-looping.
+  if (backendRes.status === 401 && !isAuthCall && !pickCookie(incomingCookie, "refreshToken")) {
+    res.cookies.delete("accessToken");
+  }
+
+  // Persist a silently-refreshed access token on this domain.
+  if (freshAccess) {
+    res.cookies.set("accessToken", freshAccess, {
+      httpOnly: true,
+      path: "/",
+      maxAge: 15 * 60,
+      sameSite: "lax",
+    });
+  }
 
   const setCookies = (backendRes.headers as Headers & { getSetCookie?: () => string[] })
     .getSetCookie?.() ?? [];
