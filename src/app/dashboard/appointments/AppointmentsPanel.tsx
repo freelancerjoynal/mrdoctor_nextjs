@@ -307,6 +307,13 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const [subTab, setSubTab] = useState<SubTab>("ALL");
   const [selected, setSelected] = useState<ConfirmedRow | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  // Live serial board (doctor + staff start/stop it from here).
+  const [live, setLive] = useState<{
+    live: boolean;
+    current: { serial: number; patientName: string } | null;
+    waitingCount: number;
+  } | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // Upfront row actions: confirm popup + edit popup.
@@ -520,6 +527,44 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       .finally(() => setStaffLoading(false));
   };
 
+  const refreshLive = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/backend/api/users/serial-live/status");
+      const json = (await res.json().catch(() => null)) as {
+        data?: { live: boolean; current: { serial: number; patientName: string } | null; waitingCount: number };
+      } | null;
+      if (res.ok && json?.data) setLive(json.data);
+    } catch {
+      /* live badge stays hidden until it loads */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshLive();
+  }, [refreshLive]);
+
+  const toggleLive = async () => {
+    if (liveBusy) return;
+    setLiveBusy(true);
+    setActionErr("");
+    try {
+      const res = await apiFetch(`/api/backend/api/users/serial-live/${live?.live ? "stop" : "start"}`, {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => null)) as {
+        data?: { live: boolean; current: { serial: number; patientName: string } | null; waitingCount: number };
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(json?.error || "লাইভ চালু/বন্ধ করা যায়নি।");
+      if (json?.data) setLive(json.data);
+      setActionMsg(json?.data?.live ? "🔴 লাইভ সিরিয়াল চালু হয়েছে — বোর্ডে দেখুন।" : "⏹️ লাইভ সিরিয়াল বন্ধ হয়েছে।");
+    } catch (err: unknown) {
+      setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
   /** Service-done / delete / cancel-request from the confirm popup. */
   const runConfirmAction = async () => {
     if (!confirmTarget || acting) return;
@@ -550,6 +595,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       setConfirmTarget(null);
       if (selected?.id === row.id) setSelected(null);
       void refresh(mainTab, subTab, true);
+      void refreshLive();
     } catch (err: unknown) {
       setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
     } finally {
@@ -725,6 +771,39 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
             >
               ➕ নতুন অ্যাপয়েন্টমেন্ট
             </button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => void toggleLive()}
+                disabled={liveBusy}
+                className={`rounded-xl px-4 py-2 text-sm font-black text-white shadow transition hover:-translate-y-0.5 disabled:opacity-60 ${
+                  live?.live ? "bg-slate-900 hover:bg-slate-700" : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {liveBusy ? "…" : live?.live ? "⏹️ লাইভ বন্ধ করুন" : "🔴 লাইভ শুরু করুন"}
+              </button>
+              {live?.live && doctor?.username && (
+                <a
+                  href={`/live/${encodeURIComponent(doctor.username)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-white/15 px-4 py-2 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/25"
+                >
+                  📺 লাইভ বোর্ড দেখুন
+                </a>
+              )}
+            </div>
+            {live?.live && (
+              <p className="mt-2 flex items-center gap-2 text-sm font-bold text-white">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                </span>
+                LIVE
+                {live.current
+                  ? ` · সিরিয়াল ${toBn(live.current.serial)} — ${live.current.patientName} · অপেক্ষায় ${toBn(live.waitingCount)} জন`
+                  : ` · অপেক্ষায় ${toBn(live.waitingCount)} জন`}
+              </p>
+            )}
           </div>
         </div>
       </section>
