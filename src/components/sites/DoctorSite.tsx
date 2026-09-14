@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import { Reveal } from "@/components/motion";
 import type { PublicBlog, PublicDoctor, PublicReview } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
-import { dayEnToBn } from "@/lib/days";
+import { compressDayRanges, dayEnToBn } from "@/lib/days";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { doctorDemo } from "./doctorDemo";
+
+const NAV_LINKS = [
+  { href: "#home", label: "পরিচিতি" },
+  { href: "#services", label: "সেবাসমূহ" },
+  { href: "#chambers", label: "চেম্বার" },
+  { href: "#serial", label: "সিরিয়াল" },
+  { href: "#qualifications", label: "যোগ্যতা" },
+  { href: "#blog", label: "ব্লগ" },
+  { href: "#testimonials", label: "মতামত" },
+  { href: "#contact", label: "যোগাযোগ" },
+];
 import { SerialSection } from "./SerialSection";
 import { BlogSection } from "@/components/blog";
 import { ReviewSection } from "@/components/reviews";
@@ -38,19 +49,22 @@ export function DoctorSite({
   const tagline = doctor?.tagline || doctorDemo.tagline;
   const aboutParas = doctor?.bio ? [doctor.bio] : doctorDemo.about;
 
-  const experienceYears =
-    doctor?.startedYear != null
-      ? Math.max(0, new Date().getFullYear() - doctor.startedYear)
-      : doctorDemo.experienceYears;
+  const experienceYears = useMemo(
+    () =>
+      doctor?.startedYear != null
+        ? Math.max(0, new Date().getFullYear() - doctor.startedYear)
+        : doctorDemo.experienceYears,
+    [doctor?.startedYear],
+  );
 
   const dbChambers = doctor && doctor.chambers.length > 0 ? doctor.chambers : null;
   const chamberCount = dbChambers ? dbChambers.length : doctorDemo.chambers.length;
 
   // Dynamic "আমি যেসব চিকিৎসা সক্রিয়ভাবে করি" — doctor_informations.expertise
   // [{ icon, service, service_details }], fallback to static demo when empty.
-  const rawExpertise = doctor?.information?.expertise;
-  const services =
-    Array.isArray(rawExpertise) && rawExpertise.length > 0
+  const services = useMemo(() => {
+    const rawExpertise = doctor?.information?.expertise;
+    return Array.isArray(rawExpertise) && rawExpertise.length > 0
       ? rawExpertise
           .filter((e) => e && typeof e.service === "string" && typeof e.service_details === "string")
           .map((e) => ({
@@ -59,22 +73,69 @@ export function DoctorSite({
             desc: e.service_details,
           }))
       : doctorDemo.services;
+  }, [doctor?.information?.expertise]);
 
   // Dynamic "যোগ্যতা ও অভিজ্ঞতা" timeline — doctor_informations.timeline
   // [{ year, title }], unbounded length, fallback to static demo when empty.
-  const rawTimeline = doctor?.information?.timeline;
-  const qualifications =
-    Array.isArray(rawTimeline) && rawTimeline.length > 0
+  const qualifications = useMemo(() => {
+    const rawTimeline = doctor?.information?.timeline;
+    return Array.isArray(rawTimeline) && rawTimeline.length > 0
       ? rawTimeline
           .filter((t) => t && typeof t.year === "string" && typeof t.title === "string")
           .map((t) => ({ year: t.year, title: t.title }))
       : doctorDemo.qualifications;
+  }, [doctor?.information?.timeline]);
+
+  // Dynamic পরিচিতি ✓ highlights — doctor_informations.highlights
+  // [{ icon, text }], fallback to static demo when empty.
+  const highlights = useMemo(() => {
+    const rawHighlights = doctor?.information?.highlights;
+    return Array.isArray(rawHighlights) && rawHighlights.length > 0
+      ? rawHighlights
+          .filter((h) => h && typeof h.text === "string" && h.text.trim())
+          .map((h) => ({
+            icon: typeof h.icon === "string" && h.icon.trim() ? h.icon.trim() : "✓",
+            text: h.text.trim(),
+          }))
+      : [
+          { icon: "✓", text: "প্রতিটি রোগীকে পর্যাপ্ত সময় দেওয়া" },
+          { icon: "✓", text: "রোগ ও চিকিৎসা সহজ ভাষায় বুঝিয়ে বলা" },
+          { icon: "✓", text: "অপ্রয়োজনীয় টেস্ট ও ওষুধ এড়িয়ে চলা" },
+        ];
+  }, [doctor?.information?.highlights]);
+
+  // Dynamic hero stat — doctor_informations.stats[0] [{ value, label }],
+  // e.g. ১২ হাজার+ / সুস্থ রোগী. Falls back to the demo stat.
+  const heroStat = useMemo(() => {
+    const rawStats = doctor?.information?.stats;
+    return Array.isArray(rawStats) && rawStats.length > 0 && typeof rawStats[0]?.value === "string"
+      ? { value: rawStats[0].value, label: typeof rawStats[0].label === "string" ? rawStats[0].label : "" }
+      : { value: doctorDemo.patientsLabel, label: doctorDemo.patientsCaption };
+  }, [doctor?.information?.stats]);
+
+  // Dynamic chamber summary for the CTA banner / contact card / top bar —
+  // area from the first chamber's thana + district, days compressed from the
+  // weekly schedules, time from the earliest start to the latest end.
+  const chamberSummary = useMemo(() => {
+    if (!dbChambers) return null;
+    const first = dbChambers.find((c) => c.thana?.trim() || c.district?.trim());
+    const areaLine = first
+      ? [first.thana?.trim(), first.district?.trim()].filter(Boolean).join(", ")
+      : null;
+    const dayEnums = [...new Set((doctor?.schedules ?? []).map((s) => String(s.dayOfWeek).toUpperCase()))];
+    const daysLine = dayEnums.length > 0 ? compressDayRanges(dayEnums) : null;
+    const starts = (doctor?.schedules ?? []).map((s) => s.startTime).filter(Boolean).sort();
+    const ends = (doctor?.schedules ?? []).map((s) => s.endTime).filter(Boolean).sort();
+    const timeLine = starts.length > 0 && ends.length > 0 ? `${toBn(starts[0]!)} – ${toBn(ends[ends.length - 1]!)}` : null;
+    if (!areaLine && !daysLine && !timeLine) return null;
+    return { areaLine, daysLine, timeLine };
+  }, [dbChambers, doctor?.schedules]);
 
   // Dynamic "স্বাস্থ্য নিয়ে কিছু জরুরি কথা" — blogs table (own PUBLISHED posts).
   // Falls back to static demo posts so the section never looks empty.
-  const rawBlogs = doctor?.blogs;
-  const blogPosts: PublicBlog[] =
-    Array.isArray(rawBlogs) && rawBlogs.length > 0
+  const blogPosts: PublicBlog[] = useMemo(() => {
+    const rawBlogs = doctor?.blogs;
+    return Array.isArray(rawBlogs) && rawBlogs.length > 0
       ? rawBlogs.map((b) => ({
           id: b.id,
           slug: b.slug,
@@ -105,30 +166,37 @@ export function DoctorSite({
           publishedAt: null,
           views: 0,
         }));
+  }, [doctor?.blogs]);
 
   // Shared WhatsApp contact — global number, never a personal one.
   const waDisplay = toBn(waNumber);
 
   // Dynamic "রোগীদের মতামত" — reviews table (APPROVED), fallback to demo.
-  const rawReviews = doctor?.reviews;
-  const reviewList: PublicReview[] = Array.isArray(rawReviews)
-    ? rawReviews.map((r) => ({
-        id: r.id,
-        rating: r.rating,
-        reviewerName: r.reviewerName,
-        title: r.title,
-        comment: r.comment,
-        createdAt: r.createdAt,
-      }))
-    : [];
-  const reviewFallback: PublicReview[] = doctorDemo.testimonials.map((t, i) => ({
-    id: `demo-t-${i}`,
-    rating: 5,
-    reviewerName: t.name,
-    title: null,
-    comment: t.quote,
-    createdAt: null,
-  }));
+  const reviewList: PublicReview[] = useMemo(() => {
+    const rawReviews = doctor?.reviews;
+    return Array.isArray(rawReviews)
+      ? rawReviews.map((r) => ({
+          id: r.id,
+          rating: r.rating,
+          reviewerName: r.reviewerName,
+          title: r.title,
+          comment: r.comment,
+          createdAt: r.createdAt,
+        }))
+      : [];
+  }, [doctor?.reviews]);
+  const reviewFallback: PublicReview[] = useMemo(
+    () =>
+      doctorDemo.testimonials.map((t, i) => ({
+        id: `demo-t-${i}`,
+        rating: 5,
+        reviewerName: t.name,
+        title: null,
+        comment: t.quote,
+        createdAt: null,
+      })),
+    [],
+  );
   const ratingSummary = doctor?.rating ?? null;
   const heroRating =
     ratingSummary && ratingSummary.count > 0
@@ -139,35 +207,37 @@ export function DoctorSite({
   const portrait = doctorPortrait(doctor?.profilePicture);
   const avatarFallback = fallbackAvatar();
 
-  const degreeChips = degree
-    .split(",")
-    .map((d) => d.trim())
-    .filter(Boolean)
-    .slice(0, 4);
+  const degreeChips = useMemo(
+    () =>
+      degree
+        .split(",")
+        .map((d) => d.trim())
+        .filter(Boolean)
+        .slice(0, 4),
+    [degree],
+  );
 
-  const nav = [
-    { href: "#home", label: "পরিচিতি" },
-    { href: "#services", label: "সেবাসমূহ" },
-    { href: "#chambers", label: "চেম্বার" },
-    { href: "#serial", label: "সিরিয়াল" },
-    { href: "#qualifications", label: "যোগ্যতা" },
-    { href: "#blog", label: "ব্লগ" },
-    { href: "#testimonials", label: "মতামত" },
-    { href: "#contact", label: "যোগাযোগ" },
-  ];
+  const nav = NAV_LINKS;
+  // Brand initial for the navbar / footer badge (no second portrait image —
+  // the hero portrait card is the single profile-picture showcase).
+  const brandInitial = (name.trim()[0] ?? "ড").toUpperCase();
 
   return (
     <div className="font-hind min-h-screen bg-white text-slate-800">
       {/* ---------- Utility top bar ---------- */}
       <div className="hidden bg-emerald-950 text-xs text-emerald-100 md:block">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-2">
-          <p>{doctorDemo.hoursLine}</p>
+          <p>
+            {chamberSummary?.daysLine && chamberSummary?.timeLine
+              ? `${chamberSummary.daysLine} · ${chamberSummary.timeLine}`
+              : doctorDemo.hoursLine}
+          </p>
           <div className="flex items-center gap-4">
             <a href={waHref} target="_blank" rel="noreferrer" className="hover:text-amber-300">
               💬 হোয়াটসঅ্যাপ: {waDisplay}
             </a>
             <span className="text-emerald-700">|</span>
-            <p>{doctorDemo.areaLine}</p>
+            <p>{chamberSummary?.areaLine ?? doctorDemo.areaLine}</p>
           </div>
         </div>
       </div>
@@ -176,17 +246,26 @@ export function DoctorSite({
       <header className="sticky top-0 z-50 border-b border-emerald-900/10 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
           <a href="#home" className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- logo may be any external doctor-uploaded URL */}
-            <img
-              src={portrait}
-              alt={name}
-              className="h-11 w-11 rounded-xl object-cover ring-1 ring-emerald-900/15"
-              onError={(e) => {
-                if (!e.currentTarget.src.endsWith(avatarFallback)) {
-                  e.currentTarget.src = avatarFallback;
-                }
-              }}
-            />
+            {portrait !== avatarFallback ? (
+              /* eslint-disable-next-line @next/next/no-img-element -- site logo is the doctor's profile picture */
+              <img
+                src={portrait}
+                alt={name}
+                className="h-11 w-11 rounded-xl object-cover ring-1 ring-emerald-900/15"
+                onError={(e) => {
+                  if (!e.currentTarget.src.endsWith(avatarFallback)) {
+                    e.currentTarget.src = avatarFallback;
+                  }
+                }}
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-xl font-black text-white ring-1 ring-emerald-900/15"
+              >
+                {brandInitial}
+              </span>
+            )}
             <span className="leading-tight">
               <span className="block font-bold text-emerald-950">{name}</span>
               <span className="block text-xs text-slate-500">{degree}</span>
@@ -313,7 +392,7 @@ export function DoctorSite({
             <dl className="mt-10 grid max-w-xl grid-cols-3 gap-3">
               {[
                 { value: `${toBn(experienceYears)}+`, label: "বছরের অভিজ্ঞতা" },
-                { value: doctorDemo.patientsLabel, label: doctorDemo.patientsCaption },
+                { value: heroStat.value, label: heroStat.label },
                 { value: toBn(chamberCount), label: "চেম্বার" },
               ].map((s) => (
                 <div
@@ -378,10 +457,36 @@ export function DoctorSite({
             <h2 className="mt-3 text-3xl font-bold text-emerald-950 md:text-4xl">
               {doctorDemo.aboutTitle}
             </h2>
-            <div className="mt-6 rounded-2xl bg-emerald-50 p-6 ring-1 ring-emerald-100">
-              <p className="text-4xl font-bold text-emerald-800">{toBn(experienceYears)}+</p>
-              <p className="mt-1 font-medium text-emerald-900">বছর ধরে রোগীদের সেবায়</p>
-              <p className="mt-3 text-sm text-emerald-800/70">{doctorDemo.regNo}</p>
+            <div className="relative mt-6 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-800 via-emerald-900 to-teal-900 p-7 text-white shadow-xl">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-[0.12]"
+                style={{
+                  backgroundImage: "radial-gradient(#fbbf24 1px, transparent 1px)",
+                  backgroundSize: "22px 22px",
+                }}
+              />
+              <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-600/40 blur-3xl" />
+              <div className="relative grid grid-cols-2 gap-5">
+                <div>
+                  <p className="text-4xl font-bold text-amber-300">{toBn(experienceYears)}+</p>
+                  <p className="mt-1 text-sm font-medium text-emerald-100/85">বছর ধরে রোগীদের সেবায়</p>
+                </div>
+                <div>
+                  <p className="text-4xl font-bold text-amber-300">{heroStat.value}</p>
+                  <p className="mt-1 text-sm font-medium text-emerald-100/85">{heroStat.label}</p>
+                </div>
+                <div className="border-t border-white/15 pt-4">
+                  <p className="text-lg font-bold text-amber-300">★ {heroRating}</p>
+                  <p className="mt-1 text-sm font-medium text-emerald-100/85">রোগীদের রেটিং</p>
+                </div>
+                <div className="border-t border-white/15 pt-4">
+                  <p className="text-lg font-bold text-amber-300">{toBn(chamberCount)}টি</p>
+                  <p className="mt-1 text-sm font-medium text-emerald-100/85">চেম্বার</p>
+                </div>
+              </div>
+              <p className="relative mt-5 border-t border-white/15 pt-4 text-xs text-emerald-100/70">
+                {doctorDemo.regNo}
+              </p>
             </div>
           </div>
           <div>
@@ -394,16 +499,12 @@ export function DoctorSite({
               </p>
             ))}
             <ul className="mt-6 space-y-3">
-              {[
-                "প্রতিটি রোগীকে পর্যাপ্ত সময় দেওয়া",
-                "রোগ ও চিকিৎসা সহজ ভাষায় বুঝিয়ে বলা",
-                "অপ্রয়োজনীয় টেস্ট ও ওষুধ এড়িয়ে চলা",
-              ].map((t) => (
-                <li key={t} className="flex items-start gap-3 font-medium text-slate-700">
+              {highlights.map((h) => (
+                <li key={h.text} className="flex items-start gap-3 font-medium text-slate-700">
                   <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
-                    ✓
+                    {h.icon}
                   </span>
-                  {t}
+                  {h.text}
                 </li>
               ))}
             </ul>
@@ -720,7 +821,10 @@ export function DoctorSite({
             <p className="text-3xl">📍</p>
             <p className="mt-3 font-bold text-emerald-950">চেম্বার এলাকা</p>
             <p className="mt-1 text-sm text-slate-600">
-              {doctorDemo.areaLine} · {doctorDemo.hoursLine}
+              {chamberSummary?.areaLine ?? doctorDemo.areaLine}
+              {chamberSummary?.daysLine && chamberSummary?.timeLine
+                ? ` · ${chamberSummary.daysLine} · ${chamberSummary.timeLine}`
+                : ` · ${doctorDemo.hoursLine}`}
             </p>
           </div>
         </div>
@@ -728,7 +832,10 @@ export function DoctorSite({
           <div>
             <p className="text-2xl font-bold md:text-3xl">আজই আপনার সিরিয়াল নিশ্চিত করুন</p>
             <p className="mt-2 text-emerald-100/85">
-              {doctorDemo.areaLine} · {doctorDemo.hoursLine}
+              {chamberSummary?.areaLine ?? doctorDemo.areaLine}
+              {chamberSummary?.daysLine && chamberSummary?.timeLine
+                ? ` · ${chamberSummary.daysLine} · ${chamberSummary.timeLine}`
+                : ` · ${doctorDemo.hoursLine}`}
             </p>
           </div>
           <a
@@ -746,17 +853,12 @@ export function DoctorSite({
       <footer className="bg-emerald-950 text-emerald-100">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-10 text-center md:flex-row md:text-left">
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- logo may be any external doctor-uploaded URL */}
-            <img
-              src={portrait}
-              alt={name}
-              className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/20"
-              onError={(e) => {
-                if (!e.currentTarget.src.endsWith(avatarFallback)) {
-                  e.currentTarget.src = avatarFallback;
-                }
-              }}
-            />
+            <span
+              aria-hidden="true"
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-xl font-black text-emerald-950 ring-1 ring-white/20"
+            >
+              {brandInitial}
+            </span>
             <div className="leading-tight">
               <p className="font-bold text-white">{name}</p>
               <p className="text-xs text-emerald-100/70">{doctorDemo.footerLine}</p>

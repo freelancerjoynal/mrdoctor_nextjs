@@ -91,6 +91,12 @@ export default async function DashboardPage() {
             {session.role === "DOCTOR" && (
               <>
                 <ManageLink
+                  href="/dashboard/chambers"
+                  emoji="🏥"
+                  label="চেম্বার ও সময়সূচি"
+                  hint="চেম্বার, timing ও date availability পরিচালনা"
+                />
+                <ManageLink
                   href="/dashboard/blogs"
                   emoji="✍️"
                   label="ব্লগ ব্যবস্থাপনা"
@@ -103,6 +109,14 @@ export default async function DashboardPage() {
                   hint="ইমেইলে স্টাফ যোগ করুন"
                 />
               </>
+            )}
+            {session.role === "DOCTOR_STAFF" && profile?.canManageChambers === true && (
+              <ManageLink
+                href="/dashboard/chambers"
+                emoji="🏥"
+                label="চেম্বার ও সময়সূচি"
+                hint="চেম্বার, timing ও date availability পরিচালনা"
+              />
             )}
           </div>
         </section>

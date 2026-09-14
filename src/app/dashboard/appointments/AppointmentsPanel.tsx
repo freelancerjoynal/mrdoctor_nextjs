@@ -254,21 +254,6 @@ async function collectionApi(): Promise<CollectionSummary> {
   return data?.data as CollectionSummary;
 }
 
-/** Chamber running-day source for the edit popup (same rule as local booking). */
-interface BookSchedule {
-  dayOfWeek: string;
-  chamberId: string | null;
-}
-
-async function bookingOptionsApi(): Promise<BookSchedule[] | null> {
-  const res = await apiFetch("/api/backend/api/users/appointments/local-options");
-  const data = (await res.json().catch(() => null)) as {
-    data?: { schedules?: BookSchedule[] };
-  } | null;
-  if (!res.ok || !data?.data) return null;
-  return Array.isArray(data.data.schedules) ? (data.data.schedules ?? []) : [];
-}
-
 /** Per-taker OFFLINE (cash) totals for the range. */
 async function staffApi(range: MainTab): Promise<StaffBucket[]> {
   const res = await apiFetch(`/api/backend/api/users/appointments/staff-collections?range=${range}`);
@@ -316,8 +301,6 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const [staffRows, setStaffRows] = useState<{ name: string; confirmed: StaffRow[]; served: StaffRow[] } | null>(null);
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffErr, setStaffErr] = useState("");
-  // Chamber schedules for dynamic edit-date options (null = failed to load → both days).
-  const [bookSchedules, setBookSchedules] = useState<BookSchedule[] | null>(null);
   const [rows, setRows] = useState<ConfirmedRow[]>([]);
   const [counts, setCounts] = useState<Record<MainTab, number>>({ today: 0, tomorrow: 0, last30: 0 });
   const [mainTab, setMainTab] = useState<MainTab>("today");
@@ -336,7 +319,6 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const [editRow, setEditRow] = useState<ConfirmedRow | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
-  const [editDate, setEditDate] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [acting, setActing] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
@@ -347,7 +329,6 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     setActionErr("");
     setEditName(row.patientName ?? "");
     setEditPhone(row.contactPhone ?? "");
-    setEditDate(localIso(row.appointmentDate));
     setEditAmount(
       row.collectionAmount != null ? String(row.collectionAmount) : row.amount != null ? String(row.amount) : "",
     );
@@ -427,13 +408,12 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     let cancelled = false;
     (async () => {
       try {
-        const [{ rows, counts }, served, s, c, sc, bo] = await Promise.all([
+        const [{ rows, counts }, served, s, c, sc] = await Promise.all([
           confirmedApi("?range=today&bookingType=ALL&limit=50"),
           servedCountsApi().catch(() => null),
           summaryApi().catch(() => null),
           collectionApi().catch(() => null),
           staffApi("today").catch(() => []),
-          bookingOptionsApi().catch(() => null),
         ]);
         if (cancelled) return;
         setRows(rows);
@@ -449,7 +429,6 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         if (s) setSummary(s);
         if (c) setCollection(c);
         setStaffCols(sc);
-        if (bo) setBookSchedules(bo);
       } catch (err: unknown) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
@@ -551,6 +530,14 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     try {
       const base = `/api/backend/api/users/appointments/confirmed/${row.id}`;
       if (kind === "done") {
+        // Future bookings can never be accepted today (server enforces too).
+        const iso = localIso(row.appointmentDate);
+        const today = localIso(new Date());
+        if (iso && today && iso > today) {
+          setActionErr("⛔ আগামীর বুকিং আজ সেবা সম্পন্ন করা যাবে না। নির্ধারিত দিনে সেবা দিন।");
+          setActing(false);
+          return;
+        }
         await rowApi(base, "PATCH", { status: "DONE" });
         setActionMsg("✓ সেবা সম্পন্ন — সেবা তালিকায় সরানো হয়েছে।");
       } else if (kind === "delete") {
@@ -580,9 +567,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       const body: Record<string, unknown> = {};
       if (editName.trim() !== editRow.patientName) body.patientName = editName.trim();
       if (editPhone.trim() !== editRow.contactPhone) body.contactPhone = editPhone.trim();
-      if (editDate && editDate !== localIso(editRow.appointmentDate)) {
-        body.appointmentDate = editDate;
-      }
+      // Appointment date is immutable — never sent.
       if (
         editRow.bookingType === "OFFLINE" &&
         editAmount.trim() !== "" &&
@@ -617,39 +602,22 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const todayOffline = adayBox?.offline;
   // First-load shimmer for the hero figures (background refreshes keep old data).
   const heroLoading = loading && !collection && !summary;
-  // Edit-popup date options: only days this chamber actually runs
-  // (chamber-bound schedules win, else the doctor's full roster).
-  // No roster / load failure → both days, mirroring the server rule.
-  const JS_DAYS = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-  const editDays: { iso: string; label: string }[] = (() => {
-    const out: { iso: string; label: string }[] = [];
-    for (let off = 0; off < 2; off++) {
-      const d = new Date();
-      d.setDate(d.getDate() + off);
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const dow = JS_DAYS[d.getDay()] ?? "";
-      if (bookSchedules && bookSchedules.length > 0) {
-        const own = editRow?.chamberId
-          ? bookSchedules.filter(
-              (s) => (s.chamberId || "").toLowerCase() === String(editRow.chamberId).toLowerCase(),
-            )
-          : [];
-        const relevant = own.length > 0 ? own : bookSchedules;
-        if (!relevant.some((s) => String(s.dayOfWeek).toUpperCase() === dow)) continue;
-      }
-      out.push({ iso, label: off === 0 ? "আজকে" : "আগামীকাল" });
-    }
-    // The booking's existing date always stays selectable (and pre-selected),
-    // even when it is neither today nor tomorrow (e.g. older last-30 rows).
-    const currentIso = localIso(editRow?.appointmentDate);
-    if (currentIso && !out.some((o) => o.iso === currentIso)) {
-      const [y, m, d] = currentIso.split("-").map(Number);
-      const wd = BN_WEEKDAYS[new Date(y!, m! - 1, d!).getDay()] ?? "";
-      out.unshift({ iso: currentIso, label: `${bnDateLabel(currentIso)}${wd ? ` · ${wd}` : ""}` });
-    }
-    return out;
-  })();
   const doctorSubline = [doctor?.degree, doctor?.speciality].filter(Boolean).join(" · ");
+
+  // Future-dated booking in the confirm popup can never be served today.
+  const confirmRowIso = confirmTarget ? localIso(confirmTarget.row.appointmentDate) : "";
+  const todayIso = localIso(new Date());
+  const confirmIsFuture =
+    confirmTarget?.kind === "done" && !!confirmRowIso && !!todayIso && confirmRowIso > todayIso;
+
+  // Serial-break warning verse: Quranic ayat for Muslim doctors (default),
+  // a general fairness quote for other religions.
+  const doctorReligion = doctor?.religion ?? "";
+  const showQuranic = (() => {
+    const r = doctorReligion.trim().toLowerCase();
+    if (!r) return true;
+    return !/(hindu|হিন্দু|সনাতন|christ|খ্রিস্ট|খ্রিষ্টান|buddh|বৌদ্ধ|jain|জৈন|sikh|শিখ|atheist|নাস্তিক)/.test(r);
+  })();
 
   return (
     <div className="space-y-5">
@@ -661,13 +629,13 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           {/* Doctor identity */}
           <div className="flex min-w-0 items-center gap-4">
             {loading && !doctor ? (
-              <Skeleton light className="h-16 w-16 shrink-0 !rounded-2xl sm:h-20 sm:w-20" />
+              <Skeleton light className="h-24 w-24 shrink-0 !rounded-2xl sm:h-28 sm:w-28" />
             ) : (
               /* eslint-disable-next-line @next/next/no-img-element -- portrait may be any external doctor-uploaded URL */
               <img
                 src={doctorPortrait(doctor?.profilePicture)}
                 alt={doctor?.name ?? "ডাক্তার"}
-                className="h-16 w-16 shrink-0 rounded-2xl border-2 border-white/40 object-cover shadow-lg sm:h-20 sm:w-20"
+                className="h-24 w-24 shrink-0 rounded-2xl border-2 border-white/40 object-cover shadow-lg sm:h-28 sm:w-28"
                 onError={(e) => {
                   const fallback = fallbackAvatar();
                   if (!e.currentTarget.src.endsWith(fallback)) e.currentTarget.src = fallback;
@@ -675,24 +643,24 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
               />
             )}
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/75">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/75">
                 🩺 চিকিৎসক
               </p>
               {loading && !doctor ? (
                 <div className="space-y-2" aria-label="লোড হচ্ছে">
-                  <Skeleton light className="h-7 w-44 sm:h-8" />
-                  <Skeleton light className="h-4 w-32" />
+                  <Skeleton light className="h-8 w-52 sm:h-10" />
+                  <Skeleton light className="h-5 w-40" />
                 </div>
               ) : (
                 <>
-                  <p className="truncate text-xl font-black tracking-tight sm:text-2xl">
+                  <p className="truncate text-2xl font-black tracking-tight sm:text-3xl">
                     {doctor?.name ?? "ডাক্তার"}
                   </p>
                   {doctorSubline && (
-                    <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{doctorSubline}</p>
+                    <p className="mt-0.5 truncate text-base font-semibold text-white/90">{doctorSubline}</p>
                   )}
                   {doctor?.tagline && (
-                    <p className="mt-0.5 truncate text-sm italic text-white/75">“{doctor.tagline}”</p>
+                    <p className="mt-0.5 truncate text-base italic text-white/75">“{doctor.tagline}”</p>
                   )}
                 </>
               )}
@@ -1102,25 +1070,40 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                 {confirmTarget.kind === "request" &&
                   "নিশ্চিত করলে অনলাইন বুকিংয়ের ক্যানসেল রিকোয়েস্ট পাঠানো হবে। বুকিং অপরিবর্তিত থাকবে।"}
               </p>
-              {confirmTarget.kind === "done" && confirmTarget.breaksOrder && (
+              {confirmTarget.kind === "done" && confirmIsFuture && (
+                <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-black text-red-700 ring-1 ring-red-200">
+                  ⛔ আগামীর বুকিং আজ সেবা সম্পন্ন করা যাবে না। নির্ধারিত দিনে সেবা দিন।
+                </p>
+              )}
+              {confirmTarget.kind === "done" && !confirmIsFuture && confirmTarget.breaksOrder && (
                 <div className="mt-3 space-y-2.5">
                   <p className="rounded-xl bg-red-50 p-3 text-sm font-black text-red-700 ring-1 ring-red-200">
                     ⚠️ সিরিয়াল নিয়ম ভঙ্গ হচ্ছে! {toBn(confirmTarget.expectedSerial ?? 0)} নম্বর
                     সিরিয়াল বাকি থাকতে {toBn(confirmTarget.row.serial || 0)} নম্বর সেবা দিতে
                     যাচ্ছেন — দয়া করে নিয়ম ভঙ্গ করবেন না।
                   </p>
-                  <blockquote className="rounded-xl bg-emerald-50 p-4 text-center ring-1 ring-emerald-200">
-                    <p dir="rtl" lang="ar" className="text-lg font-bold leading-loose text-emerald-900">
-                      «لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ»
-                    </p>
-                    <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-700">
-                      “তোমাদের কেউ পূর্ণ ঈমানদার হতে পারবে না, যতক্ষণ না সে তার ভাইয়ের জন্য
-                      তাই ভালোবাসে যা নিজের জন্য ভালোবাসে।”
-                    </p>
-                    <cite className="mt-1 block text-xs font-bold not-italic text-slate-400">
-                      — সহীহ বুখারী ও সহীহ মুসলিম
-                    </cite>
-                  </blockquote>
+                  {showQuranic ? (
+                    <blockquote className="rounded-xl bg-emerald-50 p-4 text-center ring-1 ring-emerald-200">
+                      <p dir="rtl" lang="ar" className="text-lg font-bold leading-loose text-emerald-900">
+                        «إِنَّ اللَّهَ يَأْمُرُ بِالْعَدْلِ وَالْإِحْسَانِ»
+                      </p>
+                      <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-700">
+                        “নিশ্চয়ই আল্লাহ ন্যায়বিচার ও সদাচরণের নির্দেশ দেন।”
+                      </p>
+                      <cite className="mt-1 block text-xs font-bold not-italic text-slate-400">
+                        — আল-কুরআন, সূরা আন-নাহল (১৬:৯০)
+                      </cite>
+                    </blockquote>
+                  ) : (
+                    <blockquote className="rounded-xl bg-sky-50 p-4 text-center ring-1 ring-sky-200">
+                      <p className="text-base font-black leading-relaxed text-sky-900">
+                        “সারিতে যে আগে এসেছে, সেবা তারই আগে প্রাপ্য — অন্যের হক নষ্ট করো না।”
+                      </p>
+                      <cite className="mt-1 block text-xs font-bold not-italic text-slate-400">
+                        — সাধারণ নৈতিক নীতি
+                      </cite>
+                    </blockquote>
+                  )}
                 </div>
               )}
               {actionErr && (
@@ -1131,7 +1114,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"
-                  disabled={acting}
+                  disabled={acting || confirmIsFuture}
                   onClick={() => void runConfirmAction()}
                   className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-black text-white disabled:opacity-60 ${
                     confirmTarget.kind === "done"
@@ -1216,29 +1199,10 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                   />
                 </label>
                 <div>
-                  <span className="mb-1 block text-xs font-bold text-slate-500">তারিখ (চলতি দিন অনুযায়ী)</span>
-                  {editDays.length === 0 ? (
-                    <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
-                      এই চেম্বার আজ ও আগামীকাল বন্ধ আছে — তারিখ বদলানো যাবে না।
-                    </p>
-                  ) : (
-                    <div className={`grid gap-2 ${editDays.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-                      {editDays.map((opt) => (
-                        <button
-                          key={opt.iso}
-                          type="button"
-                          onClick={() => setEditDate(opt.iso)}
-                          className={`rounded-xl px-3 py-2 text-sm font-black ring-1 transition ${
-                            editDate === opt.iso
-                              ? "bg-emerald-600 text-white ring-emerald-600"
-                              : "bg-white text-slate-600 ring-slate-200"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <span className="mb-1 block text-xs font-bold text-slate-500">তারিখ (পরিবর্তন করা যায় না)</span>
+                  <p className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-600">
+                    📅 {bnDateLabel(localIso(editRow.appointmentDate))}
+                  </p>
                 </div>
                 {editRow.bookingType === "OFFLINE" && (
                   <label className="block">

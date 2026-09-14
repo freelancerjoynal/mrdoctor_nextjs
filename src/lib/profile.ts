@@ -9,9 +9,13 @@ export function fallbackAvatar(): string {
   return DEFAULT_AVATAR;
 }
 
-/** DB profile picture, else the global bundled avatar. */
+/**
+ * Profile picture first, global bundled avatar only as fallback.
+ * Blank / whitespace-only values also fall back (never a broken image).
+ */
 export function doctorPortrait(profilePicture?: string | null): string {
-  return profilePicture || DEFAULT_AVATAR;
+  const url = (profilePicture ?? "").trim();
+  return url || DEFAULT_AVATAR;
 }
 
 export interface DoctorExpertiseItem {
@@ -23,6 +27,16 @@ export interface DoctorExpertiseItem {
 export interface DoctorTimelineItem {
   year: string;
   title: string;
+}
+
+export interface DoctorHighlightItem {
+  icon?: string | null;
+  text: string;
+}
+
+export interface DoctorStatItem {
+  value: string;
+  label: string;
 }
 
 export interface PublicBlog {
@@ -69,6 +83,9 @@ export interface PublicDoctor {
   information?: {
     expertise: DoctorExpertiseItem[];
     timeline: DoctorTimelineItem[];
+    highlights?: DoctorHighlightItem[] | null;
+    stats?: DoctorStatItem[] | null;
+    aboutImage?: string | null;
   } | null;
   blogs?: PublicBlog[] | null;
   reviews?: PublicReview[] | null;

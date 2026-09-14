@@ -3,6 +3,7 @@ import { getProfile } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/auth/displayName";
 import { MyDoctorCard } from "@/components/dashboard/MyDoctorCard";
 import { ProfilePanel } from "./ProfilePanel";
+import { DoctorContentPanel } from "./DoctorContentPanel";
 
 export default async function ProfilePage() {
   const data = await getProfile();
@@ -26,9 +27,16 @@ export default async function ProfilePage() {
         <p className="mt-1 text-sm text-slate-500">
           {getDisplayName(data.session, profile)} — নাম ও পাসওয়ার্ড পরিবর্তন করুন। ইমেইল
           অপরিবর্তনীয়।
+          {data.session.role === "DOCTOR" ? " ডাক্তাররা ইমেইল/ইউজারনেম ছাড়া সব তথ্য সম্পাদনা করতে পারবেন।" : ""}
         </p>
       </div>
-      <ProfilePanel initialEmail={email} initialName={initialName} />
+      <ProfilePanel
+        initialEmail={email}
+        initialName={initialName}
+        role={data.session.role}
+        doctorProfile={profile?.doctorProfile ?? null}
+      />
+      {data.session.role === "DOCTOR" && <DoctorContentPanel />}
       {data.session.role === "DOCTOR_STAFF" && profile?.staffDoctor && (
         <MyDoctorCard doctor={profile.staffDoctor} />
       )}

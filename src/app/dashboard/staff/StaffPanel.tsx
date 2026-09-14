@@ -10,6 +10,7 @@ interface StaffRow {
   role: string;
   isVerified: boolean;
   canApprove?: boolean | null;
+  canManageChambers?: boolean | null;
   createdAt: string;
 }
 
@@ -35,6 +36,9 @@ export function StaffPanel() {
   // Manage-approve option: ON = staff can only collect + update,
   // approval (serve/done) stays with the doctor.
   const [restrictApprove, setRestrictApprove] = useState(false);
+  // Chamber-manage option: ON = staff can manage chambers + schedules
+  // (timing / date availability) from the Chambers page.
+  const [allowChambers, setAllowChambers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -93,7 +97,12 @@ export function StaffPanel() {
     try {
       const data = (await staffApi("/", {
         method: "POST",
-        body: JSON.stringify({ name: trimmedName, email: email.trim(), canApprove: !restrictApprove }),
+        body: JSON.stringify({
+          name: trimmedName,
+          email: email.trim(),
+          canApprove: !restrictApprove,
+          canManageChambers: allowChambers,
+        }),
       })) as {
         data?: { staff: StaffRow; tempPassword: string; emailSent: boolean };
         message?: string;
@@ -105,6 +114,7 @@ export function StaffPanel() {
       setName("");
       setEmail("");
       setRestrictApprove(false);
+      setAllowChambers(false);
       await refresh(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "যোগ করা যায়নি।");
@@ -129,6 +139,19 @@ export function StaffPanel() {
       await staffApi(`/${s.id}`, {
         method: "PATCH",
         body: JSON.stringify({ canApprove: !(s.canApprove ?? true) }),
+      });
+      await refresh(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "বদলানো যায়নি।");
+    }
+  };
+
+  const flipChambers = async (s: StaffRow) => {
+    setError("");
+    try {
+      await staffApi(`/${s.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ canManageChambers: !(s.canManageChambers ?? false) }),
       });
       await refresh(true);
     } catch (err: unknown) {
@@ -187,11 +210,38 @@ export function StaffPanel() {
             </span>
             🔒 Manage approve {restrictApprove ? "ON" : "OFF"}
           </button>
+          <button
+            type="button"
+            onClick={() => setAllowChambers((v) => !v)}
+            aria-pressed={allowChambers}
+            title="চালু করলে স্টাফ চেম্বার + সময়সূচি (timing / date availability) পরিচালনা করতে পারবে"
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
+              allowChambers
+                ? "bg-emerald-600 text-white ring-emerald-600"
+                : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${
+                allowChambers ? "justify-end bg-white/30" : "justify-start bg-slate-200"
+              }`}
+            >
+              <span className={`h-4 w-4 rounded-full shadow ${allowChambers ? "bg-white" : "bg-white"}`} />
+            </span>
+            🏥 Chambers {allowChambers ? "ON" : "OFF"}
+          </button>
         </form>
         {restrictApprove && (
           <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
             চালু আছে — এই স্টাফ শুধু কালেকশন (বুকিং) + আপডেট করতে পারবে। সেবা সম্পন্ন / ডিলিটের
             অনুমোদন শুধু আপনি (ডাক্তার) দিতে পারবেন।
+          </p>
+        )}
+        {allowChambers && (
+          <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200">
+            চালু আছে — এই স্টাফ চেম্বার + সময়সূচি (timing / date availability) পরিচালনা করতে
+            পারবে।
           </p>
         )}
         {error && <p className="mt-3 text-sm font-bold text-red-600">{error}</p>}
@@ -223,6 +273,7 @@ export function StaffPanel() {
           <ul className="space-y-2">
             {rows.map((s) => {
               const full = s.canApprove ?? true;
+              const managesChambers = s.canManageChambers ?? false;
               return (
                 <li
                   key={s.id}
@@ -236,7 +287,7 @@ export function StaffPanel() {
                       {s.name?.trim() ? `${s.email} · ` : ""}
                       {s.isVerified ? "✓ সক্রিয়" : "অপেক্ষমাণ"} · {new Date(s.createdAt).toLocaleDateString("bn-BD")}
                     </p>
-                    <p className="mt-1.5">
+                    <p className="mt-1.5 flex flex-wrap gap-1.5">
                       <span
                         className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${
                           full ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"
@@ -244,9 +295,16 @@ export function StaffPanel() {
                       >
                         {full ? "✓ পূর্ণ অধিকার" : "🔒 শুধু কালেকশন + আপডেট"}
                       </span>
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${
+                          managesChambers ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {managesChambers ? "🏥 চেম্বার পরিচালনা ON" : "🏥 চেম্বার OFF"}
+                      </span>
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                     <button
                       onClick={() => void flipApprove(s)}
                       title={full ? "অনুমোদন সীমাবদ্ধ করুন" : "পূর্ণ অধিকার দিন"}
@@ -257,6 +315,17 @@ export function StaffPanel() {
                       }`}
                     >
                       {full ? "🔒 সীমাবদ্ধ করুন" : "✓ পূর্ণ করুন"}
+                    </button>
+                    <button
+                      onClick={() => void flipChambers(s)}
+                      title={managesChambers ? "চেম্বার পরিচালনা বন্ধ করুন" : "চেম্বার পরিচালনা চালু করুন"}
+                      className={`rounded-full px-4 py-2 text-sm font-bold ring-1 transition ${
+                        managesChambers
+                          ? "text-slate-600 ring-slate-200 hover:bg-slate-50"
+                          : "text-emerald-700 ring-emerald-200 hover:bg-emerald-50"
+                      }`}
+                    >
+                      {managesChambers ? "🏥 Chambers OFF" : "🏥 Chambers ON"}
                     </button>
                     <button
                       onClick={() => void remove(s.id)}

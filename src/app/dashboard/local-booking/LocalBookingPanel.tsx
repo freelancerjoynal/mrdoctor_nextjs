@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toBn } from "@/lib/bn";
 import { apiFetch } from "@/lib/auth/apiFetch";
 
@@ -19,11 +19,6 @@ interface ChamberOption {
   area: string;
 }
 
-interface ScheduleOption {
-  dayOfWeek: string;
-  chamberId: string | null;
-}
-
 interface DayOption {
   date: string;
   dayOfWeek: string;
@@ -32,8 +27,11 @@ interface DayOption {
 
 interface LocalOptions {
   chambers: ChamberOption[];
-  schedules: ScheduleOption[];
-  days: DayOption[];
+  /** Today only — walk-in bookings are locked to the current day. */
+  today: DayOption | null;
+  /** Chamber owning today via its schedule (one weekday = one chamber). */
+  autoChamberId: string | null;
+  todayClosed: boolean;
 }
 
 /** Staff walk-in booking: OFFLINE ConfirmedAppointment + SMS receipt to patient. */
@@ -48,7 +46,6 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
   const [options, setOptions] = useState<LocalOptions | null>(null);
   const [optionsError, setOptionsError] = useState("");
   const [chamberId, setChamberId] = useState("");
-  const [date, setDate] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -64,11 +61,12 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
         const json = (await res.json()) as { data: LocalOptions };
         if (cancelled) return;
         setOptions(json.data);
-        if (json.data.chambers.length === 1 && json.data.chambers[0]) {
+        // Chamber is auto-selected from today's availability (one weekday =
+        // one chamber). Falls back to the single chamber when no roster exists.
+        if (json.data.autoChamberId) {
+          setChamberId(json.data.autoChamberId);
+        } else if (json.data.chambers.length === 1 && json.data.chambers[0]) {
           setChamberId(json.data.chambers[0].id);
-        }
-        if (json.data.days.length > 0 && json.data.days[0]) {
-          setDate(json.data.days[0].date);
         }
       })
       .catch(() => {
@@ -79,35 +77,13 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
     };
   }, []);
 
-  // Date options follow the chosen chamber: today + tomorrow max, only days
-  // this chamber runs (chamber-bound schedules win, else the doctor's roster).
-  const visibleDays = useMemo(() => {
-    if (!options) return [];
-    const own = chamberId
-      ? options.schedules.filter(
-          (s) => (s.chamberId || "").toLowerCase() === chamberId.toLowerCase(),
-        )
-      : [];
-    const relevant = own.length > 0 ? own : options.schedules;
-    if (relevant.length === 0) return options.days.slice(0, 2);
-    const running = new Set(relevant.map((s) => String(s.dayOfWeek).toUpperCase()));
-    return options.days
-      .filter((d) => running.has(String(d.dayOfWeek).toUpperCase()))
-      .slice(0, 2);
-  }, [options, chamberId]);
-
-  // Keep the picked date inside the visible (chamber-aware) options.
-  useEffect(() => {
-    if (!options) return;
-    if (visibleDays.length === 0) {
-      setDate("");
-      return;
-    }
-    if (!visibleDays.some((d) => d.date === date)) {
-      const first = visibleDays[0];
-      if (first) setDate(first.date);
-    }
-  }, [options, visibleDays, date]);
+  // Locked chamber = today's running chamber (auto). Manual pick only when no
+  // schedule owns today (e.g. no roster defined yet).
+  const lockedChamber = options?.autoChamberId
+    ? (options.chambers.find((c) => c.id === options.autoChamberId) ?? null)
+    : null;
+  const todayClosed = options?.todayClosed ?? false;
+  const today = options?.today ?? null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,16 +106,12 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
       setError("সঠিক আদায়ের টাকা দিন।");
       return;
     }
-    if (options && options.chambers.length > 1 && !chamberId) {
+    if (todayClosed || !today) {
+      setError("আজ চেম্বার বন্ধ আছে।");
+      return;
+    }
+    if (options && options.chambers.length > 1 && !lockedChamber && !chamberId) {
       setError("চেম্বার বেছে নিন।");
-      return;
-    }
-    if (visibleDays.length === 0) {
-      setError("এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।");
-      return;
-    }
-    if (!date) {
-      setError("তারিখ বেছে নিন (আজ / আগামীকাল)।");
       return;
     }
 
@@ -153,8 +125,8 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
           phone: phone.trim(),
           patientType,
           collectionAmount: taka,
-          date,
-          chamberId: chamberId || undefined,
+          date: today.date,
+          chamberId: lockedChamber ? lockedChamber.id : chamberId || undefined,
           age: age.trim() === "" ? undefined : Number(age),
           area: area.trim() || undefined,
         }),
@@ -256,49 +228,45 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
             </label>
           </div>
 
-          {options && options.chambers.length > 1 && (
-            <label className="block">
-              <span className="mb-1 block text-sm font-bold text-slate-600">চেম্বার *</span>
-              <select
-                value={chamberId}
-                onChange={(e) => setChamberId(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">— বেছে নিন —</option>
-                {options.chambers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.area ? ` — ${c.area}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {lockedChamber ? (
+            <div className="rounded-xl bg-emerald-50 px-4 py-2.5 ring-1 ring-emerald-200">
+              <p className="text-xs font-bold text-emerald-600">আজকের চেম্বার (স্বয়ংক্রিয়)</p>
+              <p className="text-sm font-black text-emerald-900">
+                {lockedChamber.name}
+                {lockedChamber.area ? ` — ${lockedChamber.area}` : ""}
+              </p>
+            </div>
+          ) : (
+            options &&
+            options.chambers.length > 1 && (
+              <label className="block">
+                <span className="mb-1 block text-sm font-bold text-slate-600">চেম্বার *</span>
+                <select
+                  value={chamberId}
+                  onChange={(e) => setChamberId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">— বেছে নিন —</option>
+                  {options.chambers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.area ? ` — ${c.area}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
           )}
 
           <div>
-            <span className="mb-1 block text-sm font-bold text-slate-600">তারিখ *</span>
-            {visibleDays.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {visibleDays.map((d) => (
-                  <button
-                    key={d.date}
-                    type="button"
-                    onClick={() => setDate(d.date)}
-                    className={`rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
-                      date === d.date
-                        ? "bg-emerald-600 text-white ring-emerald-600"
-                        : "bg-white text-slate-600 ring-slate-200 hover:ring-emerald-300"
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
+            <span className="mb-1 block text-sm font-bold text-slate-600">তারিখ (শুধু আজ)</span>
+            {today ? (
+              <p className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700">
+                📅 {today.label}
+              </p>
             ) : (
               <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
-                {options
-                  ? "এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।"
-                  : "তারিখ লোড হচ্ছে…"}
+                {options ? "আজ চেম্বার বন্ধ আছে।" : "তারিখ লোড হচ্ছে…"}
               </p>
             )}
           </div>

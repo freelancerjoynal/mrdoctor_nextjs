@@ -17,6 +17,8 @@ interface DayOption {
   dayOfWeek: string;
   dayBn: string;
   label: string;
+  /** Chamber owning this weekday (one weekday = one chamber). */
+  chamberId: string | null;
 }
 
 interface OptionsResponse {
@@ -53,7 +55,8 @@ export function AppointmentForm({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const [chamberId, setChamberId] = useState("");
+  // Date-first booking: the patient picks today or the next available date,
+  // the chamber follows automatically — no chamber dropdown.
   const [date, setDate] = useState("");
   const [patientName, setPatientName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -77,13 +80,6 @@ export function AppointmentForm({
         const json = (await res.json()) as { data: OptionsResponse };
         if (cancelled) return;
         setOptions(json.data);
-        const scoped = hospitalSlug
-          ? json.data.chambers.filter(
-              (c) => c.hospital?.slug.toLowerCase() === hospitalSlug.toLowerCase(),
-            )
-          : json.data.chambers;
-        const list = scoped.length > 0 ? scoped : json.data.chambers;
-        if (list.length === 1 && list[0]) setChamberId(list[0].id);
         if (json.data.days.length > 0 && json.data.days[0]) setDate(json.data.days[0].date);
       })
       .catch(() => {
@@ -97,6 +93,7 @@ export function AppointmentForm({
     };
   }, [doctorUsername, hospitalSlug]);
 
+  // Hospital-portal scoping (client mirror of the server rule).
   const chambers = useMemo(() => {
     if (!options) return [];
     const scoped = hospitalSlug
@@ -107,42 +104,37 @@ export function AppointmentForm({
     return scoped.length > 0 ? scoped : options.chambers;
   }, [options, hospitalSlug]);
 
-  // Fee hint follows the chosen (or single) chamber.
-  const selectedChamber = useMemo(() => {
-    const picked = chambers.find((c) => c.id === chamberId);
-    if (picked) return picked;
-    return chambers.length === 1 ? chambers[0] ?? null : null;
-  }, [chambers, chamberId]);
-
-  // Date options follow the chosen chamber: today + tomorrow max, only days
-  // this chamber runs (chamber-bound schedules win, else the doctor's roster).
+  // Date-first booking: today + the very next running days (server: max 2
+  // within 30 days). In a hospital portal, days owned by other hospitals'
+  // chambers are hidden.
   const visibleDays = useMemo(() => {
     if (!options) return [];
-    const own = selectedChamber
-      ? options.schedules.filter(
-          (s) => (s.chamberId || "").toLowerCase() === selectedChamber.id.toLowerCase(),
-        )
-      : [];
-    const relevant = own.length > 0 ? own : options.schedules;
-    if (relevant.length === 0) return options.days.slice(0, 2);
-    const running = new Set(relevant.map((s) => String(s.dayOfWeek).toUpperCase()));
-    return options.days
-      .filter((d) => running.has(String(d.dayOfWeek).toUpperCase()))
-      .slice(0, 2);
-  }, [options, selectedChamber]);
+    return options.days.filter(
+      (d) => !d.chamberId || chambers.some((c) => c.id === d.chamberId),
+    );
+  }, [options, chambers]);
 
-  // Keep the picked date inside the visible (chamber-aware) options.
-  useEffect(() => {
-    if (!options) return;
-    if (visibleDays.length === 0) {
-      setDate("");
-      return;
-    }
-    if (!visibleDays.some((d) => d.date === date)) {
-      const first = visibleDays[0];
-      if (first) setDate(first.date);
-    }
-  }, [options, visibleDays, date]);
+  // The chamber follows the chosen date (one weekday = one chamber) —
+  // displayed read-only, never a dropdown.
+  const autoChamber = useMemo(() => {
+    const day = visibleDays.find((d) => d.date === date) ?? visibleDays[0] ?? null;
+    if (!day) return null;
+    if (day.chamberId) return chambers.find((c) => c.id === day.chamberId) ?? null;
+    return chambers[0] ?? null;
+  }, [visibleDays, date, chambers]);
+
+  // Timing of the auto chamber on the chosen date's weekday.
+  const autoTiming = useMemo(() => {
+    if (!options || !autoChamber || !date) return null;
+    const day = visibleDays.find((d) => d.date === date);
+    if (!day) return null;
+    const match = options.schedules.find(
+      (s) =>
+        String(s.dayOfWeek).toUpperCase() === String(day.dayOfWeek).toUpperCase() &&
+        (!s.chamberId || s.chamberId.toLowerCase() === autoChamber.id.toLowerCase()),
+    );
+    return match ? `${match.startTime}–${match.endTime}` : null;
+  }, [options, autoChamber, date, visibleDays]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,16 +153,16 @@ export function AppointmentForm({
       setError("সমস্যাটি একটু বিস্তারিত লিখুন (কমপক্ষে ৩ অক্ষর)।");
       return;
     }
-    if (chambers.length > 1 && !chamberId) {
-      setError("কোন চেম্বারে দেখাতে চান বেছে নিন।");
-      return;
-    }
     if (visibleDays.length === 0) {
-      setError("এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।");
+      setError("আগামী ৩০ দিনে কোনো সিডিউল নেই।");
       return;
     }
     if (!date) {
       setError("সাক্ষাতের তারিখ বেছে নিন।");
+      return;
+    }
+    if (!autoChamber) {
+      setError("এই তারিখে কোনো চেম্বার পাওয়া যায়নি।");
       return;
     }
     setSending(true);
@@ -181,7 +173,7 @@ export function AppointmentForm({
         body: JSON.stringify({
           doctorUsername,
           hospitalSlug: hospitalSlug || undefined,
-          chamberId: chamberId || undefined,
+          chamberId: autoChamber.id,
           appointmentDate: date,
           patientName: patientName.trim(),
           patientType,
@@ -311,39 +303,25 @@ export function AppointmentForm({
             </select>
           ) : (
             <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
-              এই চেম্বার আজ ও আগামীকাল বন্ধ আছে।
+              আগামী ৩০ দিনে কোনো সিডিউল নেই।
             </p>
           )}
         </div>
 
-        {chambers.length > 1 ? (
-          <div className={compact ? "" : "sm:col-span-2"}>
-            <label className={labelCls} htmlFor={`apt-chamber-${doctorUsername}`}>
-              চেম্বার বেছে নিন *
-            </label>
-            <select
-              id={`apt-chamber-${doctorUsername}`}
-              value={chamberId}
-              onChange={(e) => setChamberId(e.target.value)}
-              className={inputCls}
-            >
-              <option value="">— বেছে নিন —</option>
-              {chambers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.area ? ` — ${c.area}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : chambers.length === 1 && chambers[0] ? (
-          <div className={compact ? "" : "sm:col-span-2"}>
+        <div className={compact ? "" : "sm:col-span-2"}>
+          <span className={labelCls}>চেম্বার (তারিখ অনুযায়ী স্বয়ংক্রিয়)</span>
+          {autoChamber ? (
             <p className="rounded-xl bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-100">
-              🏥 {chambers[0].name}
-              {chambers[0].area ? ` — ${chambers[0].area}` : ""}
+              🏥 {autoChamber.name}
+              {autoChamber.area ? ` — ${autoChamber.area}` : ""}
+              {autoTiming ? ` · 🕒 ${autoTiming}` : ""}
             </p>
-          </div>
-        ) : null}
+          ) : (
+            <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+              এই তারিখে কোনো চেম্বার পাওয়া যায়নি।
+            </p>
+          )}
+        </div>
 
         <div className={compact ? "" : "sm:col-span-2"}>
           <span className={labelCls} id={`apt-type-label-${doctorUsername}`}>
@@ -356,8 +334,8 @@ export function AppointmentForm({
           >
             {(
               [
-                { value: "NEW", label: "নতুন রোগী", fee: selectedChamber?.newFee },
-                { value: "RENEW", label: "পুরনো রোগী", fee: selectedChamber?.oldFee },
+                { value: "NEW", label: "নতুন রোগী", fee: autoChamber?.newFee },
+                { value: "RENEW", label: "পুরনো রোগী", fee: autoChamber?.oldFee },
               ] as const
             ).map((opt) => {
               const active = patientType === opt.value;

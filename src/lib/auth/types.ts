@@ -34,6 +34,7 @@ export interface StaffDoctorInfo {
   phone: string;
   profilePicture?: string | null;
   gender?: "MALE" | "FEMALE" | null;
+  religion?: string | null;
   username: string;
 }
 
@@ -52,6 +53,8 @@ export interface UserProfile {
   superAdminProfile?: SuperAdminProfile | null;
   /** Approval right (staff): false = collect + update only, doctor approves. */
   canApprove?: boolean | null;
+  /** Chamber/schedule right (staff): true = manage chambers + timing/availability. */
+  canManageChambers?: boolean | null;
 }
 
 export type OtpPurpose = "signup" | "login" | "reset";

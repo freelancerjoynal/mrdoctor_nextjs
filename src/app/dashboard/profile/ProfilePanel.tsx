@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import { useAppDispatch } from "@/lib/store/hooks";
 import { patchLocalName } from "@/lib/store/profileSlice";
+import { CloudinaryImageInput } from "@/components/CloudinaryImageInput";
+import type { DoctorProfile } from "@/lib/auth/profiles";
 
-async function profileApi(body: Record<string, string>) {
+async function profileApi(body: Record<string, unknown>) {
   const res = await apiFetch("/api/backend/api/users/profile", {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -20,13 +22,17 @@ async function profileApi(body: Record<string, string>) {
   return data;
 }
 
-/** Self-service profile: email is read-only, name + password are editable. */
+/** Self-service profile: email/username read-only; DOCTOR can edit all own doctor fields. */
 export function ProfilePanel({
   initialEmail,
   initialName,
+  role,
+  doctorProfile,
 }: {
   initialEmail: string;
   initialName: string;
+  role?: string;
+  doctorProfile?: DoctorProfile | null;
 }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -106,7 +112,23 @@ export function ProfilePanel({
           <span className="mb-1 block text-sm font-bold text-slate-600">ইমেইল (অপরিবর্তনীয়)</span>
           <input value={initialEmail} disabled readOnly className={`${inputCls} cursor-not-allowed bg-slate-100 text-slate-500`} />
         </label>
+        {role === "DOCTOR" && doctorProfile?.username ? (
+          <label className="mt-3 block">
+            <span className="mb-1 block text-sm font-bold text-slate-600">ইউজারনেম (অপরিবর্তনীয়)</span>
+            <input
+              value={doctorProfile.username}
+              disabled
+              readOnly
+              className={`${inputCls} cursor-not-allowed bg-slate-100 text-slate-500`}
+            />
+          </label>
+        ) : null}
       </section>
+
+      {/* Doctor edit-profile — every Doctor field except email/username */}
+      {role === "DOCTOR" && (
+        <DoctorEditSection initial={doctorProfile ?? null} inputCls={inputCls} />
+      )}
 
       {/* Name */}
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
@@ -182,5 +204,176 @@ export function ProfilePanel({
         {pwMsg.ok && <p className="mt-3 text-sm font-bold text-emerald-700">{pwMsg.ok}</p>}
       </section>
     </div>
+  );
+}
+
+function str(v: string | null | undefined): string {
+  return v ?? "";
+}
+
+function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | null; inputCls: string }) {
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const [form, setForm] = useState({
+    name: str(initial?.name),
+    name_en: str(initial?.name_en),
+    degree: str(initial?.degree),
+    degree_en: str(initial?.degree_en),
+    speciality: str(initial?.speciality),
+    speciality_en: str(initial?.speciality_en),
+    tagline: str(initial?.tagline),
+    tagline_en: str(initial?.tagline_en),
+    bio: str(initial?.bio),
+    bio_en: str(initial?.bio_en),
+    phone: str(initial?.phone),
+    whatsappNumber: str(initial?.whatsappNumber),
+    whatsappId: str(initial?.whatsappId),
+    whatsappAccessToken: str(initial?.whatsappAccessToken),
+    templateName: str(initial?.templateName) || "template_a",
+    profilePicture: str(initial?.profilePicture),
+    gender: (initial?.gender ?? "") as string,
+    religion: str(initial?.religion),
+    startedYear: initial?.startedYear != null ? String(initial.startedYear) : "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ ok: "", err: "" });
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    setMsg({ ok: "", err: "" });
+    if (form.name.trim().length < 2 || form.degree.trim().length < 2 || form.speciality.trim().length < 2) {
+      setMsg({ ok: "", err: "নাম, ডিগ্রি ও বিশেষত্ব অবশ্যই দিতে হবে।" });
+      return;
+    }
+    if (form.phone.trim().length < 6) {
+      setMsg({ ok: "", err: "সঠিক ফোন নম্বর দিন।" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const doctor: Record<string, unknown> = {
+        name: form.name.trim(),
+        name_en: form.name_en.trim(),
+        degree: form.degree.trim(),
+        degree_en: form.degree_en.trim(),
+        speciality: form.speciality.trim(),
+        speciality_en: form.speciality_en.trim(),
+        tagline: form.tagline.trim(),
+        tagline_en: form.tagline_en.trim(),
+        bio: form.bio.trim(),
+        bio_en: form.bio_en.trim(),
+        phone: form.phone.trim(),
+        whatsappNumber: form.whatsappNumber.trim(),
+        whatsappId: form.whatsappId.trim(),
+        whatsappAccessToken: form.whatsappAccessToken.trim(),
+        templateName: form.templateName.trim() || "template_a",
+        profilePicture: form.profilePicture.trim(),
+        gender: form.gender.trim(),
+        religion: form.religion.trim(),
+        startedYear: form.startedYear.trim(),
+      };
+      await profileApi({ doctor });
+      const newName = form.name.trim();
+      dispatch(patchLocalName(newName));
+      setMsg({ ok: "ডাক্তার প্রোফাইল সফলভাবে আপডেট হয়েছে।", err: "" });
+      router.refresh();
+    } catch (err: unknown) {
+      setMsg({ ok: "", err: err instanceof Error ? err.message : "আপডেট ব্যর্থ হয়েছে।" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (label: string, k: keyof typeof form, placeholder = "", type = "text") => (
+    <label className="block">
+      <span className="mb-1 block text-sm font-bold text-slate-600">{label}</span>
+      <input value={form[k]} onChange={set(k)} placeholder={placeholder} type={type} className={inputCls} />
+    </label>
+  );
+
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+      <p className="text-lg font-black text-slate-900">🩺 ডাক্তার প্রোফাইল সম্পাদনা</p>
+      <p className="mt-1 text-sm text-slate-500">
+        ইমেইল ও ইউজারনেম ছাড়া আপনার সব তথ্য এখান থেকে পরিবর্তন করতে পারবেন।
+        {initial?.status ? ` (স্ট্যাটাস: ${initial.status} — পরিবর্তনযোগ্য নয়)` : ""}
+      </p>
+      <form onSubmit={onSubmit} className="mt-4 space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {field("নাম (বাংলা) *", "name", "ডা. ...")}
+          {field("Name (English)", "name_en", "Dr. ...")}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {field("ডিগ্রি *", "degree", "MBBS, ...")}
+          {field("Degree (English)", "degree_en", "MBBS, ...")}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {field("বিশেষত্ব *", "speciality", "মেডিসিন বিশেষজ্ঞ")}
+          {field("Speciality (English)", "speciality_en", "Medicine Specialist")}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {field("ট্যাগলাইন (বাংলা)", "tagline", "সংক্ষিপ্ত পরিচিতি")}
+          {field("Tagline (English)", "tagline_en", "Short intro")}
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold text-slate-600">বায়ো (বাংলা)</span>
+          <textarea value={form.bio} onChange={set("bio")} rows={3} className={inputCls} placeholder="আপনার সম্পর্কে লিখুন" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold text-slate-600">Bio (English)</span>
+          <textarea value={form.bio_en} onChange={set("bio_en")} rows={3} className={inputCls} placeholder="Write about yourself" />
+        </label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {field("ফোন *", "phone", "01XXXXXXXXX", "tel")}
+          {field("হোয়াটসঅ্যাপ নম্বর", "whatsappNumber", "01XXXXXXXXX", "tel")}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {field("হোয়াটসঅ্যাপ আইডি", "whatsappId", ".....wa")}
+          {field("টেমপ্লেট", "templateName", "template_a")}
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold text-slate-600">হোয়াটসঅ্যাপ অ্যাক্সেস টোকেন</span>
+          <input
+            value={form.whatsappAccessToken}
+            onChange={set("whatsappAccessToken")}
+            type="password"
+            autoComplete="off"
+            placeholder="••••••••"
+            className={inputCls}
+          />
+        </label>
+        <CloudinaryImageInput
+          label="প্রোফাইল ছবি (আপলোড করলেই URL বসে যাবে)"
+          value={form.profilePicture}
+          onChange={(url) => setForm((f) => ({ ...f, profilePicture: url }))}
+          folder="profile-pictures"
+        />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold text-slate-600">লিঙ্গ</span>
+            <select value={form.gender} onChange={set("gender")} className={inputCls}>
+              <option value="">— নির্বাচন করুন —</option>
+              <option value="MALE">পুরুষ (MALE)</option>
+              <option value="FEMALE">নারী (FEMALE)</option>
+            </select>
+          </label>
+          {field("ধর্ম", "religion", "ইসলাম / হিন্দু / ...")}
+          {field("শুরুর বছর", "startedYear", "2010", "number")}
+        </div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl bg-emerald-600 px-6 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {saving ? "সেভ হচ্ছে…" : "💾 ডাক্তার প্রোফাইল সেভ করুন"}
+        </button>
+      </form>
+      {msg.err && <p className="mt-3 text-sm font-bold text-red-600">{msg.err}</p>}
+      {msg.ok && <p className="mt-3 text-sm font-bold text-emerald-700">{msg.ok}</p>}
+    </section>
   );
 }
