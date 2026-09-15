@@ -8,6 +8,7 @@ import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { Skeleton, SkeletonCards } from "@/components/dashboard/Skeleton";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { fetchProfile } from "@/lib/store/profileSlice";
+import { useRealtimeStream } from "@/lib/realtime/useRealtimeStream";
 import { LocalBookingPanel } from "@/app/dashboard/local-booking/LocalBookingPanel";
 
 type DayRange = "yesterday" | "today";
@@ -243,20 +244,19 @@ export function HospitalDeskDashboard() {
     };
   }, [currentUserId, range, customDate]);
 
-  // Quiet refresh every 30s + on tab focus (no doctor filter involved).
-  useEffect(() => {
-    if (!currentUserId) return;
-    const day = customDate ?? (range === "today" ? isoToday() : isoYesterday());
-    const tick = () => {
+  // Push-driven refresh: reload only when the server pushes an
+  // `appointments` frame for this hospital (or on reconnect catch-up).
+  // No polling timers — the hook owns visibility handling.
+  useRealtimeStream({
+    enabled: currentUserId !== "",
+    url: "/api/stream",
+    probeUrl: "/api/backend/api/users/appointments/staff-collections?range=today",
+    onEvent: (types) => {
+      if (!types.includes("appointments") || !currentUserId) return;
+      const day = customDate ?? (range === "today" ? isoToday() : isoYesterday());
       void loadAll(range, day, currentUserId, true);
-    };
-    const id = setInterval(tick, 30000);
-    window.addEventListener("focus", tick);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", tick);
-    };
-  }, [currentUserId, range, customDate, loadAll]);
+    },
+  });
 
   const switchRange = (r: DayRange) => {
     if (dayLoading && range === r && !customDate) return;

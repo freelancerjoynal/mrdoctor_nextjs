@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toBn, bnDateLabel, BN_WEEKDAYS } from "@/lib/bn";
@@ -10,6 +10,7 @@ import { Skeleton, SkeletonCards, SkeletonRows } from "@/components/dashboard/Sk
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { fetchProfile } from "@/lib/store/profileSlice";
 import { buildPortalUrl } from "@/lib/portal";
+import { useRealtimeStream } from "@/lib/realtime/useRealtimeStream";
 import { LocalBookingPanel } from "../local-booking/LocalBookingPanel";
 
 type MainTab = "today" | "tomorrow" | "last30";
@@ -866,65 +867,29 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     }
   };
 
-  // Board-speed sync: the public live board polls every 5s, so the panel does
-  // the same — cheap counts + live status each tick, and the heavier list /
-  // boxes only re-pull when the signature actually changed (new booking,
-  // serve, skip, recall from any device). Tab focus syncs immediately.
-  const lastSig = useRef<string>("");
-  const fastTick = useCallback(async () => {
-    try {
+  // Push-driven sync (websocket-style): the server pushes `appointments` /
+  // `live` frames only when a booking mutation touches this scope — zero
+  // polling timers. The hook reconnects on return-to-tab and fires a
+  // catch-up frame, so missed pushes replay as a full quiet refresh.
+  useRealtimeStream({
+    url: "/api/stream",
+    probeUrl: "/api/backend/api/users/appointments/confirmed/counts",
+    onEvent: (types) => {
       const did = isHospitalStaff ? doctorFilter || undefined : undefined;
-      const [confirmed, served] = await Promise.all([confirmedCountsApi(did), servedCountsApi(did)]);
-      const nextCounts = { today: confirmed.today, tomorrow: confirmed.tomorrow, last30: served.last30 };
-      const res = await apiFetch("/api/backend/api/users/serial-live/status");
-      const json = (await res.json().catch(() => null)) as {
-        data?: {
-          live: boolean;
-          current: { serial: number; patientName: string } | null;
-          missed?: LiveMissed[];
-          upcoming?: { serial: number; patientName: string }[];
-          waitingCount: number;
-        };
-      } | null;
-      const cur = res.ok && json?.data ? json.data : null;
-      const sig = [
-        nextCounts.today,
-        nextCounts.tomorrow,
-        nextCounts.last30,
-        cur
-          ? `${cur.live}:${cur.current?.serial ?? "-"}:${cur.waitingCount}:${(cur.missed ?? []).length}:${(cur.upcoming ?? []).map((u) => u.serial).join(",")}`
-          : "off",
-      ].join("|");
-      setCounts(nextCounts);
-      if (cur) setLive({ ...cur, missed: cur.missed ?? [], upcoming: cur.upcoming ?? [] });
-      if (sig !== lastSig.current) {
-        lastSig.current = sig;
-        loadList(mainTab, subTab, did).catch(() => {});
-        // Hospital desk is list-only here (figures live on the dashboard).
-        if (!isHospitalDesk) {
-          loadStaff(mainTab, did).catch(() => {});
-          collectionApi(did)
-            .then((c) => setCollection(c))
-            .catch(() => {});
-          summaryApi()
-            .then((s) => setSummary(s))
-            .catch(() => {});
-        }
+      if (types.includes("appointments")) {
+        void refresh(mainTab, subTab, true, {
+          userId: currentUserId,
+          hospitalDesk: isHospitalDesk,
+          doctorId: did,
+        });
       }
-    } catch {
-      /* keep last frame on network blips */
-    }
-  }, [loadList, loadStaff, mainTab, subTab, isHospitalDesk, isHospitalStaff, currentUserId, doctorFilter]);
-
-  useEffect(() => {
-    const id = setInterval(() => void fastTick(), 5000);
-    const onFocus = () => void fastTick();
-    window.addEventListener("focus", onFocus);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [fastTick]);
+      if (types.includes("live")) {
+        void refreshLive();
+        // Board moves (skip/recall/serve) reshape the visible list itself.
+        loadList(mainTab, subTab, did).catch(() => {});
+      }
+    },
+  });
 
   /** Service-done / delete / cancel-request from the confirm popup. */
   const runConfirmAction = async () => {

@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import { toBn } from "@/lib/bn";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
+import { useRealtimeStream } from "@/lib/realtime/useRealtimeStream";
 import type { LiveSnapshot } from "@/lib/live";
 
 /**
@@ -124,10 +125,16 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
     }
   }, [username]);
 
-  useEffect(() => {
-    const id = setInterval(pull, 5000);
-    return () => clearInterval(id);
-  }, [pull]);
+  // Push-driven board: snapshot re-pulls only when the server pushes a
+  // `live` frame for this doctor (or on reconnect catch-up). No polling —
+  // the 1s wall clock above is local-only and never hits the network.
+  useRealtimeStream({
+    url: `/api/stream/live?username=${encodeURIComponent(username)}`,
+    onEvent: (types) => {
+      if (!types.includes("live")) return;
+      void pull();
+    },
+  });
 
   if (!snap) {
     return (

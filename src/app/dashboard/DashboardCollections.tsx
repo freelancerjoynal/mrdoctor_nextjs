@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { bnDateLabel, toBn } from "@/lib/bn";
 import { apiFetch } from "@/lib/auth/apiFetch";
+import { useRealtimeStream } from "@/lib/realtime/useRealtimeStream";
 import { CollectionCard, type CollectionBucket } from "@/components/dashboard/CollectionCard";
 
 interface CollectionSummary {
@@ -51,24 +52,22 @@ export function DashboardCollections({ isDoctor }: { isDoctor: boolean }) {
     };
   }, []);
 
-  // Live counters: quietly re-pull every 30s and whenever the tab regains
-  // focus, so bookings from any device show up by themselves.
-  useEffect(() => {
-    const tick = () => {
+  // Push-driven counters: re-pull only when the server pushes an
+  // `appointments` frame for this scope (or on reconnect catch-up).
+  // No polling timers — the hook owns visibility handling.
+  useRealtimeStream({
+    url: "/api/stream",
+    probeUrl: "/api/backend/api/users/appointments/collection/summary",
+    onEvent: (types) => {
+      if (!types.includes("appointments")) return;
       collectionApi()
         .then((c) => {
           setCollection(c);
           setError("");
         })
         .catch(() => {});
-    };
-    const id = setInterval(tick, 30000);
-    window.addEventListener("focus", tick);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", tick);
-    };
-  }, []);
+    },
+  });
 
   return (
     <section className="space-y-3 sm:space-y-4">
