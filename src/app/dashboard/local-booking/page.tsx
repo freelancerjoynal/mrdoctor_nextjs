@@ -2,11 +2,17 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { LocalBookingPanel } from "./LocalBookingPanel";
 
-/** Staff walk-in page — OFFLINE booking + SMS receipt. */
+/** Staff walk-in page — OFFLINE booking + SMS receipt. Hospital desk picks the doctor. */
 export default async function LocalBookingPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (session.role !== "DOCTOR" && session.role !== "DOCTOR_STAFF") redirect("/dashboard");
+  if (
+    session.role !== "DOCTOR" &&
+    session.role !== "DOCTOR_STAFF" &&
+    session.role !== "HOSPITAL" &&
+    session.role !== "HOSPITAL_STAFF"
+  )
+    redirect("/dashboard");
 
   return (
     <div className="space-y-5">

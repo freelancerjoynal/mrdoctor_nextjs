@@ -19,6 +19,14 @@ interface ChamberOption {
   area: string;
 }
 
+interface DoctorOption {
+  id: string;
+  name: string;
+  speciality?: string | null;
+  degree?: string | null;
+  availableToday: boolean;
+}
+
 interface DayOption {
   date: string;
   dayOfWeek: string;
@@ -27,6 +35,8 @@ interface DayOption {
 
 interface LocalOptions {
   chambers: ChamberOption[];
+  /** Hospital desk: doctors of this hospital (availableToday flags today). */
+  doctors?: DoctorOption[] | null;
   /** Today only — walk-in bookings are locked to the current day. */
   today: DayOption | null;
   /** Chamber owning today via its schedule (one weekday = one chamber). */
@@ -46,6 +56,7 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
   const [options, setOptions] = useState<LocalOptions | null>(null);
   const [optionsError, setOptionsError] = useState("");
   const [chamberId, setChamberId] = useState("");
+  const [doctorId, setDoctorId] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +72,12 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
         const json = (await res.json()) as { data: LocalOptions };
         if (cancelled) return;
         setOptions(json.data);
+        // Hospital desk: preselect the first today-available doctor.
+        const docs = Array.isArray(json.data.doctors) ? json.data.doctors : [];
+        if (docs.length > 0) {
+          const first = docs.find((d) => d.availableToday) ?? docs[0];
+          if (first) setDoctorId(first.id);
+        }
         // Chamber is auto-selected from today's availability (one weekday =
         // one chamber). Falls back to the single chamber when no roster exists.
         if (json.data.autoChamberId) {
@@ -76,6 +93,11 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
       cancelled = true;
     };
   }, []);
+
+  const isHospitalDesk = Array.isArray(options?.doctors);
+  const doctors = isHospitalDesk ? (options?.doctors ?? []) : [];
+  const availableDoctors = doctors.filter((d) => d.availableToday);
+  const selectedDoctor = doctors.find((d) => d.id === doctorId) ?? null;
 
   // Locked chamber = today's running chamber (auto). Manual pick only when no
   // schedule owns today (e.g. no roster defined yet).
@@ -110,7 +132,18 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
       setError("আজ চেম্বার বন্ধ আছে।");
       return;
     }
-    if (options && options.chambers.length > 1 && !lockedChamber && !chamberId) {
+    // Hospital desk: a today-available doctor is required.
+    if (isHospitalDesk) {
+      if (!doctorId) {
+        setError("ডাক্তার বেছে নিন।");
+        return;
+      }
+      if (selectedDoctor && !selectedDoctor.availableToday) {
+        setError("এই ডাক্তার আজ উপস্থিত নেই — আজকের ডাক্তার বেছে নিন।");
+        return;
+      }
+    }
+    if (!isHospitalDesk && options && options.chambers.length > 1 && !lockedChamber && !chamberId) {
       setError("চেম্বার বেছে নিন।");
       return;
     }
@@ -126,7 +159,11 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
           patientType,
           collectionAmount: taka,
           date: today.date,
-          chamberId: lockedChamber ? lockedChamber.id : chamberId || undefined,
+          // Hospital desk: doctor drives everything (chamber auto-resolves to
+          // today's hospital chamber) — never send a stale chamber id.
+          ...(isHospitalDesk
+            ? { doctorId }
+            : { chamberId: lockedChamber ? lockedChamber.id : chamberId || undefined }),
           age: age.trim() === "" ? undefined : Number(age),
           area: area.trim() || undefined,
         }),
@@ -167,6 +204,42 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
           <p className="mt-3 text-sm font-bold text-red-600">{optionsError}</p>
         )}
         <form onSubmit={submit} className="mt-4 space-y-3">
+          {isHospitalDesk && (
+            <label className="block">
+              <span className="mb-1 block text-sm font-bold text-slate-600">ডাক্তার * (আজ উপস্থিত)</span>
+              {doctors.length === 0 ? (
+                <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+                  এই হাসপাতালে এখনো কোনো ডাক্তার যুক্ত হয়নি।
+                </p>
+              ) : availableDoctors.length === 0 ? (
+                <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+                  আজ কোনো ডাক্তার উপস্থিত নেই।
+                </p>
+              ) : (
+                <select
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">— ডাক্তার বেছে নিন —</option>
+                  {availableDoctors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                      {d.speciality ? ` — ${d.speciality}` : ""}
+                    </option>
+                  ))}
+                  {doctors
+                    .filter((d) => !d.availableToday)
+                    .map((d) => (
+                      <option key={d.id} value={d.id} disabled>
+                        {d.name}
+                        {d.speciality ? ` — ${d.speciality}` : ""} (আজ বন্ধ)
+                      </option>
+                    ))}
+                </select>
+              )}
+            </label>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm font-bold text-slate-600">রোগীর নাম *</span>
@@ -228,7 +301,16 @@ export function LocalBookingPanel({ onSuccess }: { onSuccess?: () => void }) {
             </label>
           </div>
 
-          {lockedChamber ? (
+          {isHospitalDesk ? (
+            selectedDoctor && (
+              <div className="rounded-xl bg-indigo-50 px-4 py-2.5 ring-1 ring-indigo-200">
+                <p className="text-xs font-bold text-indigo-600">আজকের চেম্বার (স্বয়ংক্রিয়)</p>
+                <p className="text-sm font-black text-indigo-900">
+                  {selectedDoctor.name} — হাসপাতালের আজকের চেম্বারে বুকিং হবে
+                </p>
+              </div>
+            )
+          ) : lockedChamber ? (
             <div className="rounded-xl bg-emerald-50 px-4 py-2.5 ring-1 ring-emerald-200">
               <p className="text-xs font-bold text-emerald-600">আজকের চেম্বার (স্বয়ংক্রিয়)</p>
               <p className="text-sm font-black text-emerald-900">

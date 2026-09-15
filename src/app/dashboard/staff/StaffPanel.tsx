@@ -28,8 +28,11 @@ async function staffApi(path: string, init?: RequestInit) {
   return data;
 }
 
-/** Doctor adds staff by email — credentials go to the staff's email. */
-export function StaffPanel() {
+/** Doctor adds staff by email — credentials go to the staff's email.
+ * Hospital mode (isHospital): HOSPITAL owner adds HOSPITAL_STAFF — no chamber
+ * management, no serve/approve right (only the doctor marks service-done).
+ * Hospital staff book + manage appointments for any doctor of the hospital. */
+export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
   const [rows, setRows] = useState<StaffRow[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -164,7 +167,9 @@ export function StaffPanel() {
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
         <p className="text-lg font-black text-slate-900">নতুন স্টাফ যোগ করুন</p>
         <p className="mt-1 text-sm text-slate-500">
-          নাম ও ইমেইল দিলেই অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় পাঠিয়ে দেওয়া হবে।
+          {isHospital
+            ? "নাম ও ইমেইল দিলেই হাসপাতাল-স্টাফ অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় পাঠিয়ে দেওয়া হবে। স্টাফ আজ উপস্থিত যেকোনো ডাক্তারের বুকিং নিতে পারবে (সেবা সম্পন্ন শুধু ডাক্তার করবেন)।"
+            : "নাম ও ইমেইল দিলেই অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় পাঠিয়ে দেওয়া হবে।"}
         </p>
         <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <input
@@ -189,50 +194,60 @@ export function StaffPanel() {
           >
             {sending ? "যোগ হচ্ছে…" : "➕ স্টাফ যোগ করুন"}
           </button>
-          <button
-            type="button"
-            onClick={() => setRestrictApprove((v) => !v)}
-            aria-pressed={restrictApprove}
-            title="চালু করলে স্টাফ শুধু কালেকশন + আপডেট করতে পারবে, অনুমোদন শুধু ডাক্তার দেবেন"
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
-              restrictApprove
-                ? "bg-amber-500 text-white ring-amber-500"
-                : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${
-                restrictApprove ? "justify-end bg-white/30" : "justify-start bg-slate-200"
-              }`}
-            >
-              <span className={`h-4 w-4 rounded-full shadow ${restrictApprove ? "bg-white" : "bg-white"}`} />
-            </span>
-            🔒 Manage approve {restrictApprove ? "ON" : "OFF"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAllowChambers((v) => !v)}
-            aria-pressed={allowChambers}
-            title="চালু করলে স্টাফ চেম্বার + সময়সূচি (timing / date availability) পরিচালনা করতে পারবে"
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
-              allowChambers
-                ? "bg-emerald-600 text-white ring-emerald-600"
-                : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${
-                allowChambers ? "justify-end bg-white/30" : "justify-start bg-slate-200"
-              }`}
-            >
-              <span className={`h-4 w-4 rounded-full shadow ${allowChambers ? "bg-white" : "bg-white"}`} />
-            </span>
-            🏥 Chambers {allowChambers ? "ON" : "OFF"}
-          </button>
+          {!isHospital && (
+            <>
+              <button
+                type="button"
+                onClick={() => setRestrictApprove((v) => !v)}
+                aria-pressed={restrictApprove}
+                title="চালু করলে স্টাফ শুধু কালেকশন + আপডেট করতে পারবে, অনুমোদন শুধু ডাক্তার দেবেন"
+                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
+                  restrictApprove
+                    ? "bg-amber-500 text-white ring-amber-500"
+                    : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${
+                    restrictApprove ? "justify-end bg-white/30" : "justify-start bg-slate-200"
+                  }`}
+                >
+                  <span className={`h-4 w-4 rounded-full shadow ${restrictApprove ? "bg-white" : "bg-white"}`} />
+                </span>
+                🔒 Manage approve {restrictApprove ? "ON" : "OFF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllowChambers((v) => !v)}
+                aria-pressed={allowChambers}
+                title="চালু করলে স্টাফ চেম্বার + সময়সূচি (timing / date availability) পরিচালনা করতে পারবে"
+                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black ring-1 transition ${
+                  allowChambers
+                    ? "bg-emerald-600 text-white ring-emerald-600"
+                    : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${
+                    allowChambers ? "justify-end bg-white/30" : "justify-start bg-slate-200"
+                  }`}
+                >
+                  <span className={`h-4 w-4 rounded-full shadow ${allowChambers ? "bg-white" : "bg-white"}`} />
+                </span>
+                🏥 Chambers {allowChambers ? "ON" : "OFF"}
+              </button>
+            </>
+          )}
         </form>
-        {restrictApprove && (
+        {isHospital && (
+          <p className="mt-2 rounded-xl bg-indigo-50 p-3 text-xs font-bold text-indigo-800 ring-1 ring-indigo-200">
+            হাসপাতাল-স্টাফ শুধু বুকিং + আপডেট করতে পারবে — চেম্বার পরিচালনা নেই, সেবা সম্পন্ন
+            শুধু ডাক্তার করবেন। ডিলিট শুধু যিনি বুকিং নিয়েছেন তিনি করতে পারবেন।
+          </p>
+        )}
+        {!isHospital && restrictApprove && (
           <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
             চালু আছে — এই স্টাফ শুধু কালেকশন (বুকিং) + আপডেট করতে পারবে। সেবা সম্পন্ন / ডিলিটের
             অনুমোদন শুধু আপনি (ডাক্তার) দিতে পারবেন।
@@ -288,45 +303,57 @@ export function StaffPanel() {
                       {s.isVerified ? "✓ সক্রিয়" : "অপেক্ষমাণ"} · {new Date(s.createdAt).toLocaleDateString("bn-BD")}
                     </p>
                     <p className="mt-1.5 flex flex-wrap gap-1.5">
-                      <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${
-                          full ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"
-                        }`}
-                      >
-                        {full ? "✓ পূর্ণ অধিকার" : "🔒 শুধু কালেকশন + আপডেট"}
-                      </span>
-                      <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${
-                          managesChambers ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-                        }`}
-                      >
-                        {managesChambers ? "🏥 চেম্বার পরিচালনা ON" : "🏥 চেম্বার OFF"}
-                      </span>
+                      {isHospital ? (
+                        <span className="inline-block rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-black text-indigo-800">
+                          🔒 শুধু বুকিং + আপডেট (সেবা সম্পন্ন শুধু ডাক্তার)
+                        </span>
+                      ) : (
+                        <>
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${
+                              full ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"
+                            }`}
+                          >
+                            {full ? "✓ পূর্ণ অধিকার" : "🔒 শুধু কালেকশন + আপডেট"}
+                          </span>
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${
+                              managesChambers ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {managesChambers ? "🏥 চেম্বার পরিচালনা ON" : "🏥 চেম্বার OFF"}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    <button
-                      onClick={() => void flipApprove(s)}
-                      title={full ? "অনুমোদন সীমাবদ্ধ করুন" : "পূর্ণ অধিকার দিন"}
-                      className={`rounded-full px-4 py-2 text-sm font-bold ring-1 transition ${
-                        full
-                          ? "text-amber-700 ring-amber-200 hover:bg-amber-50"
-                          : "text-emerald-700 ring-emerald-200 hover:bg-emerald-50"
-                      }`}
-                    >
-                      {full ? "🔒 সীমাবদ্ধ করুন" : "✓ পূর্ণ করুন"}
-                    </button>
-                    <button
-                      onClick={() => void flipChambers(s)}
-                      title={managesChambers ? "চেম্বার পরিচালনা বন্ধ করুন" : "চেম্বার পরিচালনা চালু করুন"}
-                      className={`rounded-full px-4 py-2 text-sm font-bold ring-1 transition ${
-                        managesChambers
-                          ? "text-slate-600 ring-slate-200 hover:bg-slate-50"
-                          : "text-emerald-700 ring-emerald-200 hover:bg-emerald-50"
-                      }`}
-                    >
-                      {managesChambers ? "🏥 Chambers OFF" : "🏥 Chambers ON"}
-                    </button>
+                    {!isHospital && (
+                      <>
+                        <button
+                          onClick={() => void flipApprove(s)}
+                          title={full ? "অনুমোদন সীমাবদ্ধ করুন" : "পূর্ণ অধিকার দিন"}
+                          className={`rounded-full px-4 py-2 text-sm font-bold ring-1 transition ${
+                            full
+                              ? "text-amber-700 ring-amber-200 hover:bg-amber-50"
+                              : "text-emerald-700 ring-emerald-200 hover:bg-emerald-50"
+                          }`}
+                        >
+                          {full ? "🔒 সীমাবদ্ধ করুন" : "✓ পূর্ণ করুন"}
+                        </button>
+                        <button
+                          onClick={() => void flipChambers(s)}
+                          title={managesChambers ? "চেম্বার পরিচালনা বন্ধ করুন" : "চেম্বার পরিচালনা চালু করুন"}
+                          className={`rounded-full px-4 py-2 text-sm font-bold ring-1 transition ${
+                            managesChambers
+                              ? "text-slate-600 ring-slate-200 hover:bg-slate-50"
+                              : "text-emerald-700 ring-emerald-200 hover:bg-emerald-50"
+                          }`}
+                        >
+                          {managesChambers ? "🏥 Chambers OFF" : "🏥 Chambers ON"}
+                        </button>
+                      </>
+                    )}
                     <button
                       onClick={() => void remove(s.id)}
                       className="shrink-0 rounded-full px-4 py-2 text-sm font-bold text-red-600 ring-1 ring-red-200 hover:bg-red-50"

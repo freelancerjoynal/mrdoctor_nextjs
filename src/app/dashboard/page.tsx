@@ -6,6 +6,7 @@ import { ROLE_META } from "@/lib/auth/constants";
 import { ProfileCard } from "@/components/dashboard/ProfileCard";
 import { MyDoctorCard } from "@/components/dashboard/MyDoctorCard";
 import { DoctorHeroCard } from "@/components/dashboard/DoctorHeroCard";
+import { HospitalDeskDashboard } from "@/components/dashboard/HospitalDeskDashboard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { DashboardCollections } from "./DashboardCollections";
@@ -26,28 +27,33 @@ export default async function DashboardPage() {
         ? (profile?.staffDoctor ?? null)
         : null;
 
+  // Hospital staff get a focused desk home (HospitalDeskDashboard) — the
+  // generic greeting hero + profile card are hidden for them.
+  const isHospitalStaff = session.role === "HOSPITAL_STAFF";
+
   return (
     <div className="space-y-5 sm:space-y-6">
-      {heroDoctor ? (
-        <DoctorHeroCard doctor={heroDoctor} greeting={name} />
-      ) : (
-        /* Hero */
-        <section
-          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${meta.gradient} p-5 text-white shadow-2xl sm:rounded-3xl sm:p-8`}
-        >
-          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/20 blur-2xl" />
-          <div className="absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
-          <p className="relative text-xs font-semibold uppercase tracking-widest text-white/80 sm:text-sm">
-            {meta.emoji} {meta.label} dashboard
-          </p>
-          <h1 className="relative mt-1 break-words text-2xl font-black tracking-tight sm:text-4xl">
-            হ্যালো, {name} 👋
-          </h1>
-          <p className="relative mt-1 max-w-lg text-sm text-white/85 sm:text-base">{meta.tagline}</p>
-        </section>
-      )}
+      {!isHospitalStaff &&
+        (heroDoctor ? (
+          <DoctorHeroCard doctor={heroDoctor} greeting={name} />
+        ) : (
+          /* Hero */
+          <section
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${meta.gradient} p-5 text-white shadow-2xl sm:rounded-3xl sm:p-8`}
+          >
+            <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/20 blur-2xl" />
+            <div className="absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
+            <p className="relative text-xs font-semibold uppercase tracking-widest text-white/80 sm:text-sm">
+              {meta.emoji} {meta.label} dashboard
+            </p>
+            <h1 className="relative mt-1 break-words text-2xl font-black tracking-tight sm:text-4xl">
+              হ্যালো, {name} 👋
+            </h1>
+            <p className="relative mt-1 max-w-lg text-sm text-white/85 sm:text-base">{meta.tagline}</p>
+          </section>
+        ))}
 
-      <ProfileCard session={session} profile={profile} />
+      {!isHospitalStaff && <ProfileCard session={session} profile={profile} />}
 
       {/* Staff sees which doctor they work under */}
       {session.role === "DOCTOR_STAFF" && profile?.staffDoctor && (
@@ -58,6 +64,9 @@ export default async function DashboardPage() {
       {(session.role === "DOCTOR" || session.role === "DOCTOR_STAFF") && (
         <DashboardCollections isDoctor={session.role === "DOCTOR"} />
       )}
+
+      {/* Hospital desk home: stable hero + cash + booking (no doctor filter here) */}
+      {(session.role === "HOSPITAL" || session.role === "HOSPITAL_STAFF") && <HospitalDeskDashboard />}
 
       {/* Manage — doctor's admin panel (staff gets appointments only) */}
       {(session.role === "DOCTOR" || session.role === "DOCTOR_STAFF") && (
@@ -122,8 +131,46 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Stats + quick actions stay only for non-doctor roles */}
-      {session.role !== "DOCTOR" && session.role !== "DOCTOR_STAFF" && (
+      {/* Manage — hospital desk: appointments + booking (+ staff mgmt for owner). No chambers, no serve. */}
+      {(session.role === "HOSPITAL" || session.role === "HOSPITAL_STAFF") && (
+        <section>
+          <h2 className="mb-3 text-base font-black text-slate-900 sm:text-lg">পরিচালনা</h2>
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
+            <ManageLink
+              href="/dashboard/profile"
+              emoji="👤"
+              label="প্রোফাইল ব্যবস্থাপনা"
+              hint="নাম ও পাসওয়ার্ড পরিবর্তন করুন"
+            />
+            <ManageLink
+              href="/dashboard/appointments"
+              emoji="📋"
+              label="অ্যাপয়েন্টমেন্ট প্যানেল"
+              hint="আজকের তালিকা ও বুকিং ব্যবস্থাপনা"
+            />
+            <ManageLink
+              href="/dashboard/local-booking"
+              emoji="➕"
+              label="লোকাল বুকিং"
+              hint="ডাক্তার বেছে সরাসরি রোগী + SMS রসিদ"
+            />
+            {session.role === "HOSPITAL" && (
+              <ManageLink
+                href="/dashboard/staff"
+                emoji="🧑‍⚕️"
+                label="স্টাফ ব্যবস্থাপনা"
+                hint="ইমেইলে হাসপাতাল-স্টাফ যোগ করুন"
+              />
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Stats + quick actions stay only for non-doctor, non-hospital roles */}
+      {session.role !== "DOCTOR" &&
+        session.role !== "DOCTOR_STAFF" &&
+        session.role !== "HOSPITAL" &&
+        session.role !== "HOSPITAL_STAFF" && (
         <>
           <section className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
             {meta.stats.map((s, i) => (

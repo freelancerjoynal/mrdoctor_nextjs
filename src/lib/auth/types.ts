@@ -50,6 +50,8 @@ export interface UserProfile {
   isVerified: boolean;
   createdAt: string;
   staffDoctor?: StaffDoctorInfo | null;
+  /** The hospital a HOSPITAL_STAFF user works under (null for other roles). */
+  staffHospital?: { id: string; name: string; slug: string } | null;
   doctorProfile?: DoctorProfile | null;
   hospitalProfile?: HospitalProfile | null;
   superAdminProfile?: SuperAdminProfile | null;

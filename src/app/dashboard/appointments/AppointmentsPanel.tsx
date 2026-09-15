@@ -108,6 +108,21 @@ interface StaffRow {
   appointmentDate: string;
   served: boolean;
   amount: number;
+  doctorId?: string | null;
+  doctorName?: string | null;
+  doctorSpeciality?: string | null;
+}
+
+interface StaffDoctorBreakdown {
+  doctorId: string;
+  doctorName: string;
+  doctorSpeciality?: string | null;
+  count: number;
+  total: number;
+  confirmedCount: number;
+  confirmedTotal: number;
+  servedCount: number;
+  servedTotal: number;
 }
 
 const TYPE_BN: Record<ConfirmedRow["bookingType"], string> = {
@@ -169,10 +184,11 @@ async function confirmedApi(path: string, init?: RequestInit) {
 }
 
 /** Served list (সেবা সম্পন্ন) — reads served_appointments, channel-filterable. */
-async function servedApi(range: MainTab, bookingType: SubTab = "ALL") {
+async function servedApi(range: MainTab, bookingType: SubTab = "ALL", doctorId?: string) {
   const type = bookingType === "ONLINE" || bookingType === "OFFLINE" ? bookingType : "ALL";
+  const doctorQ = doctorId?.trim() ? `&doctorId=${encodeURIComponent(doctorId.trim())}` : "";
   const res = await apiFetch(
-    `/api/backend/api/users/appointments/served?range=${range}&bookingType=${type}&limit=50`,
+    `/api/backend/api/users/appointments/served?range=${range}&bookingType=${type}&limit=50${doctorQ}`,
   );
   const data = (await res.json().catch(() => null)) as {
     data?: ConfirmedRow[];
@@ -186,8 +202,9 @@ async function servedApi(range: MainTab, bookingType: SubTab = "ALL") {
   };
 }
 
-async function confirmedCountsApi(): Promise<Record<MainTab, number>> {
-  const res = await apiFetch("/api/backend/api/users/appointments/confirmed/counts");
+async function confirmedCountsApi(doctorId?: string): Promise<Record<MainTab, number>> {
+  const doctorQ = doctorId?.trim() ? `?doctorId=${encodeURIComponent(doctorId.trim())}` : "";
+  const res = await apiFetch(`/api/backend/api/users/appointments/confirmed/counts${doctorQ}`);
   const data = (await res.json().catch(() => null)) as {
     data?: { today?: number; tomorrow?: number; last30?: number };
     error?: string;
@@ -201,8 +218,9 @@ async function confirmedCountsApi(): Promise<Record<MainTab, number>> {
 }
 
 /** Served counters — the last30 tab counts served history, not pending queue. */
-async function servedCountsApi(): Promise<Record<MainTab, number>> {
-  const res = await apiFetch("/api/backend/api/users/appointments/served/counts");
+async function servedCountsApi(doctorId?: string): Promise<Record<MainTab, number>> {
+  const doctorQ = doctorId?.trim() ? `?doctorId=${encodeURIComponent(doctorId.trim())}` : "";
+  const res = await apiFetch(`/api/backend/api/users/appointments/served/counts${doctorQ}`);
   const data = (await res.json().catch(() => null)) as {
     data?: { today?: number; tomorrow?: number; last30?: number };
     error?: string;
@@ -272,8 +290,9 @@ interface CollectionBucket {
   offline: ChannelBucket;
 }
 
-async function collectionApi(): Promise<CollectionSummary> {
-  const res = await apiFetch("/api/backend/api/users/appointments/collection/summary");
+async function collectionApi(doctorId?: string): Promise<CollectionSummary> {
+  const doctorQ = doctorId?.trim() ? `?doctorId=${encodeURIComponent(doctorId.trim())}` : "";
+  const res = await apiFetch(`/api/backend/api/users/appointments/collection/summary${doctorQ}`);
   const data = (await res.json().catch(() => null)) as {
     data?: CollectionSummary;
     error?: string;
@@ -283,8 +302,9 @@ async function collectionApi(): Promise<CollectionSummary> {
 }
 
 /** Per-taker OFFLINE (cash) totals for the range. */
-async function staffApi(range: MainTab): Promise<StaffBucket[]> {
-  const res = await apiFetch(`/api/backend/api/users/appointments/staff-collections?range=${range}`);
+async function staffApi(range: MainTab, doctorId?: string): Promise<StaffBucket[]> {
+  const doctorQ = doctorId?.trim() ? `&doctorId=${encodeURIComponent(doctorId.trim())}` : "";
+  const res = await apiFetch(`/api/backend/api/users/appointments/staff-collections?range=${range}${doctorQ}`);
   const data = (await res.json().catch(() => null)) as {
     data?: StaffBucket[];
     error?: string;
@@ -293,16 +313,18 @@ async function staffApi(range: MainTab): Promise<StaffBucket[]> {
   return Array.isArray(data?.data) ? (data?.data ?? []) : [];
 }
 
-/** OFFLINE rows taken by one staff in the range. */
+/** OFFLINE rows taken by one staff in the range (+ per-doctor breakdown). */
 async function staffRowsApi(
   range: MainTab,
   userId: string,
-): Promise<{ name: string; confirmed: StaffRow[]; served: StaffRow[] }> {
+  doctorId?: string,
+): Promise<{ name: string; confirmed: StaffRow[]; served: StaffRow[]; byDoctor: StaffDoctorBreakdown[] }> {
+  const doctorQ = doctorId?.trim() ? `&doctorId=${encodeURIComponent(doctorId.trim())}` : "";
   const res = await apiFetch(
-    `/api/backend/api/users/appointments/staff-collections/rows?range=${range}&userId=${encodeURIComponent(userId)}&limit=100`,
+    `/api/backend/api/users/appointments/staff-collections/rows?range=${range}&userId=${encodeURIComponent(userId)}&limit=100${doctorQ}`,
   );
   const data = (await res.json().catch(() => null)) as {
-    data?: { name: string; confirmed: StaffRow[]; served: StaffRow[] };
+    data?: { name: string; confirmed: StaffRow[]; served: StaffRow[]; byDoctor?: StaffDoctorBreakdown[] };
     error?: string;
   } | null;
   if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
@@ -310,6 +332,7 @@ async function staffRowsApi(
     name: data?.data?.name ?? "স্টাফ",
     confirmed: Array.isArray(data?.data?.confirmed) ? (data?.data?.confirmed ?? []) : [],
     served: Array.isArray(data?.data?.served) ? (data?.data?.served ?? []) : [],
+    byDoctor: Array.isArray(data?.data?.byDoctor) ? (data?.data?.byDoctor ?? []) : [],
   };
 }
 
@@ -321,9 +344,14 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   // (fetched once per login, shared by all panels — no refetch on revisit).
   const sessionProfile = useAppSelector((s) => s.profile.data);
   const doctor = sessionProfile?.staffDoctor ?? sessionProfile?.doctorProfile ?? null;
-  // Serve lock: only the doctor may mark service-done — no staffer can,
-  // regardless of flags. Delete stays owner-only; everything else is shared.
-  const approveLocked = sessionProfile?.role === "DOCTOR_STAFF";
+  const isHospitalDesk = sessionProfile?.role === "HOSPITAL" || sessionProfile?.role === "HOSPITAL_STAFF";
+  // Doctor dropdown: hospital_staff only (hospital desk operators manage
+  // specific doctors' appointment lists — doctors/staff never see this).
+  const isHospitalStaff = sessionProfile?.role === "HOSPITAL_STAFF";
+  // Serve lock: only the doctor may mark service-done — no staffer and no
+  // hospital operator can, regardless of flags. Delete stays owner-only
+  // (only the adder may delete); everything else is shared.
+  const approveLocked = sessionProfile?.role !== "DOCTOR" && sessionProfile?.role !== "SUPER_ADMIN";
   // Owner-only delete: nobody may delete a booking they didn't add — not even
   // the doctor. Only the adder (createdBy) may delete it. Legacy rows without
   // createdBy stay deletable (no owner recorded).
@@ -345,13 +373,35 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const [collection, setCollection] = useState<CollectionSummary | null>(null);
   const [staffCols, setStaffCols] = useState<StaffBucket[]>([]);
   const [staffView, setStaffView] = useState<{ userId: string; name: string } | null>(null);
-  const [staffRows, setStaffRows] = useState<{ name: string; confirmed: StaffRow[]; served: StaffRow[] } | null>(null);
+  const [staffRows, setStaffRows] = useState<{
+    name: string;
+    confirmed: StaffRow[];
+    served: StaffRow[];
+    byDoctor: StaffDoctorBreakdown[];
+  } | null>(null);
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffErr, setStaffErr] = useState("");
+  // Hospital desk "my collection": this operator's own OFFLINE rows for the
+  // active day tab, grouped per doctor (auto-loaded — no click needed).
+  const [myRows, setMyRows] = useState<{
+    name: string;
+    confirmed: StaffRow[];
+    served: StaffRow[];
+    byDoctor: StaffDoctorBreakdown[];
+  } | null>(null);
+  const [myLoading, setMyLoading] = useState(false);
   const [rows, setRows] = useState<ConfirmedRow[]>([]);
   const [counts, setCounts] = useState<Record<MainTab, number>>({ today: 0, tomorrow: 0, last30: 0 });
   const [mainTab, setMainTab] = useState<MainTab>("today");
   const [subTab, setSubTab] = useState<SubTab>("ALL");
+  // Hospital-staff doctor filter: "" = all doctors, else one doctorId.
+  // Options come from local-options (same source as the booking form) so the
+  // list always matches "doctors of this hospital + availableToday flag".
+  const [doctorFilter, setDoctorFilter] = useState("");
+  const [doctorOptions, setDoctorOptions] = useState<
+    { id: string; name: string; speciality?: string | null; availableToday: boolean }[]
+  >([]);
+  const [doctorLoading, setDoctorLoading] = useState(false);
   const [selected, setSelected] = useState<ConfirmedRow | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
   // Live serial board (doctor + staff start/stop it from here).
@@ -398,6 +448,12 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const openEdit = (row: ConfirmedRow) => {
     setActionMsg("");
     setActionErr("");
+    // Hospital desk: only the adder may update — same owner-only rule as delete.
+    if (isHospitalDesk && !isOwnBooking(row)) {
+      const who = row.createdByName?.trim() ? ` (${row.createdByName.trim()})` : "";
+      setActionErr(`⛔ এই বুকিং${who} যোগ করেছেন — শুধু তিনি এডিট করতে পারবেন।`);
+      return;
+    }
     setEditName(row.patientName ?? "");
     setEditPhone(row.contactPhone ?? "");
     setEditAmount(
@@ -445,24 +501,49 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     setConfirmTarget({ row, kind, breaksOrder, expectedSerial });
   };
 
-  const loadCounts = useCallback(async () => {
-    const [confirmed, served] = await Promise.all([confirmedCountsApi(), servedCountsApi()]);
+  const loadCounts = useCallback(async (doctorId?: string) => {
+    const [confirmed, served] = await Promise.all([
+      confirmedCountsApi(doctorId),
+      servedCountsApi(doctorId),
+    ]);
     // today/tomorrow = pending queue; last30 = served history.
     setCounts({ today: confirmed.today, tomorrow: confirmed.tomorrow, last30: served.last30 });
   }, []);
 
-  const loadStaff = useCallback(async (main: MainTab) => {
-    setStaffCols(await staffApi(main).catch(() => []));
+  const loadStaff = useCallback(async (main: MainTab, doctorId?: string) => {
+    setStaffCols(await staffApi(main, doctorId).catch(() => []));
   }, []);
 
-  const loadList = useCallback(async (main: MainTab, sub: SubTab) => {
+  // Hospital desk only: this operator's own OFFLINE rows for the active day
+  // tab (confirmed + served + per-doctor split). Skipped for doctor roles
+  // (their hero is the doctor's collection, not a personal cash card).
+  const loadMine = useCallback(
+    async (main: MainTab, userId: string, hospitalDesk: boolean, doctorId?: string) => {
+      if (!hospitalDesk || !userId) {
+        setMyRows(null);
+        return;
+      }
+      setMyLoading(true);
+      try {
+        setMyRows(await staffRowsApi(main, userId, doctorId));
+      } catch {
+        setMyRows(null);
+      } finally {
+        setMyLoading(false);
+      }
+    },
+    [],
+  );
+
+  const loadList = useCallback(async (main: MainTab, sub: SubTab, doctorId?: string) => {
+    const doctorQ = doctorId?.trim() ? `&doctorId=${encodeURIComponent(doctorId.trim())}` : "";
     // Served history: the DONE sub-tab everywhere, plus the whole last30 tab.
     if (sub === "DONE" || main === "last30") {
-      const { rows } = await servedApi(main, sub);
+      const { rows } = await servedApi(main, sub, doctorId);
       setRows(rows);
       return;
     }
-    const { rows, counts } = await confirmedApi(`?range=${main}&bookingType=${sub}&limit=50`);
+    const { rows, counts } = await confirmedApi(`?range=${main}&bookingType=${sub}&limit=50${doctorQ}`);
     setRows(rows);
     if (counts) {
       setCounts((prev) => ({
@@ -474,16 +555,26 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   }, []);
 
   const refresh = useCallback(
-    async (main: MainTab, sub: SubTab, quiet = false) => {
+    async (
+      main: MainTab,
+      sub: SubTab,
+      quiet = false,
+      mine?: { userId: string; hospitalDesk: boolean; doctorId?: string },
+    ) => {
       if (!quiet) setLoading(true);
       setError("");
+      const doctorId = mine?.doctorId;
+      // Hospital desk: this page is list-only (hero + cash live on the
+      // dashboard), so skip the figures' round trips here.
+      const listOnly = mine?.hospitalDesk === true;
       try {
         await Promise.all([
-          loadList(main, sub),
-          loadCounts(),
-          loadStaff(main),
-          summaryApi().then(setSummary).catch(() => {}),
-          collectionApi().then(setCollection).catch(() => {}),
+          loadList(main, sub, doctorId),
+          loadCounts(doctorId),
+          listOnly ? Promise.resolve() : loadStaff(main, doctorId),
+          listOnly ? Promise.resolve() : summaryApi().then(setSummary).catch(() => {}),
+          listOnly ? Promise.resolve() : collectionApi(doctorId).then(setCollection).catch(() => {}),
+          mine && !listOnly ? loadMine(main, mine.userId, mine.hospitalDesk, doctorId) : Promise.resolve(),
         ]);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
@@ -491,7 +582,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         setLoading(false);
       }
     },
-    [loadCounts, loadList, loadStaff],
+    [loadCounts, loadList, loadStaff, loadMine],
   );
 
   useEffect(() => {
@@ -554,8 +645,12 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     setStaffRows(null);
     setLoading(true);
     setError("");
-    loadStaff(t).catch(() => {});
-    loadList(t, subTab)
+    // Hospital desk is list-only here (figures live on the dashboard).
+    if (!isHospitalDesk) {
+      loadStaff(t, isHospitalStaff ? doctorFilter || undefined : undefined).catch(() => {});
+      void loadMine(t, currentUserId, isHospitalDesk, isHospitalStaff ? doctorFilter || undefined : undefined);
+    }
+    loadList(t, subTab, isHospitalStaff ? doctorFilter || undefined : undefined)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "লোড করা যায়নি।"))
       .finally(() => setLoading(false));
   };
@@ -565,7 +660,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     setSelected(null);
     setLoading(true);
     setError("");
-    loadList(mainTab, s)
+    loadList(mainTab, s, isHospitalStaff ? doctorFilter || undefined : undefined)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "লোড করা যায়নি।"))
       .finally(() => setLoading(false));
   };
@@ -576,7 +671,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     setBookingOpen(false);
     setActionErr("");
     setActionMsg("✓ নতুন বুকিং সম্পন্ন — তালিকায় যোগ হয়েছে।");
-    void refresh(mainTab, subTab, true);
+    void refresh(mainTab, subTab, true, {
+      userId: currentUserId,
+      hospitalDesk: isHospitalDesk,
+      doctorId: isHospitalStaff ? doctorFilter || undefined : undefined,
+    });
   };
 
   /** Open one taker's cash card → load their rows for this range. */
@@ -585,11 +684,62 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     setStaffRows(null);
     setStaffErr("");
     setStaffLoading(true);
-    staffRowsApi(mainTab, bucket.userId)
+    staffRowsApi(mainTab, bucket.userId, isHospitalStaff ? doctorFilter || undefined : undefined)
       .then(setStaffRows)
       .catch((err: unknown) => setStaffErr(err instanceof Error ? err.message : "লোড করা যায়নি।"))
       .finally(() => setStaffLoading(false));
   };
+
+  // Hospital-staff doctor dropdown options (today-available list).
+  useEffect(() => {
+    if (!isHospitalStaff) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for the one-time doctor dropdown fetch
+    setDoctorLoading(true);
+    apiFetch("/api/backend/api/users/appointments/local-options")
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json().catch(() => null)) as {
+          data?: { doctors?: { id: string; name: string; speciality?: string | null; availableToday: boolean }[] };
+        } | null;
+        if (cancelled) return;
+        const docs = Array.isArray(json?.data?.doctors) ? json.data.doctors! : [];
+        setDoctorOptions(docs);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDoctorLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isHospitalStaff]);
+
+  /** Hospital-staff doctor change: reload the appointment list + counters for that doctor.
+   * Cash + collection live on the dashboard (unfiltered), so only the list reloads here. */
+  const switchDoctor = (id: string) => {
+    setDoctorFilter(id);
+    setSelected(null);
+    setStaffView(null);
+    setStaffRows(null);
+    setLoading(true);
+    setError("");
+    const did = id.trim() || undefined;
+    loadCounts(did).catch(() => {});
+    loadList(mainTab, subTab, did)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "লোড করা যায়নি।"))
+      .finally(() => setLoading(false));
+  };
+
+  // "My collection + per-doctor" live on the dashboard (HospitalDeskDashboard)
+  // for hospital desk — nothing to auto-load on this list-only page.
+  // (Doctor roles still use myRows via loadMine in refresh/switchMain.)
+  useEffect(() => {
+    if (isHospitalDesk) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear personal rows; dashboard owns them now
+      setMyRows(null);
+    }
+  }, [isHospitalDesk]);
 
   const refreshLive = useCallback(async () => {
     try {
@@ -723,7 +873,8 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const lastSig = useRef<string>("");
   const fastTick = useCallback(async () => {
     try {
-      const [confirmed, served] = await Promise.all([confirmedCountsApi(), servedCountsApi()]);
+      const did = isHospitalStaff ? doctorFilter || undefined : undefined;
+      const [confirmed, served] = await Promise.all([confirmedCountsApi(did), servedCountsApi(did)]);
       const nextCounts = { today: confirmed.today, tomorrow: confirmed.tomorrow, last30: served.last30 };
       const res = await apiFetch("/api/backend/api/users/serial-live/status");
       const json = (await res.json().catch(() => null)) as {
@@ -748,19 +899,22 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       if (cur) setLive({ ...cur, missed: cur.missed ?? [], upcoming: cur.upcoming ?? [] });
       if (sig !== lastSig.current) {
         lastSig.current = sig;
-        loadList(mainTab, subTab).catch(() => {});
-        loadStaff(mainTab).catch(() => {});
-        collectionApi()
-          .then((c) => setCollection(c))
-          .catch(() => {});
-        summaryApi()
-          .then((s) => setSummary(s))
-          .catch(() => {});
+        loadList(mainTab, subTab, did).catch(() => {});
+        // Hospital desk is list-only here (figures live on the dashboard).
+        if (!isHospitalDesk) {
+          loadStaff(mainTab, did).catch(() => {});
+          collectionApi(did)
+            .then((c) => setCollection(c))
+            .catch(() => {});
+          summaryApi()
+            .then((s) => setSummary(s))
+            .catch(() => {});
+        }
       }
     } catch {
       /* keep last frame on network blips */
     }
-  }, [loadList, loadStaff, mainTab, subTab]);
+  }, [loadList, loadStaff, mainTab, subTab, isHospitalDesk, isHospitalStaff, currentUserId, doctorFilter]);
 
   useEffect(() => {
     const id = setInterval(() => void fastTick(), 5000);
@@ -801,7 +955,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       }
       setConfirmTarget(null);
       if (selected?.id === row.id) setSelected(null);
-      void refresh(mainTab, subTab, true);
+      void refresh(mainTab, subTab, true, {
+        userId: currentUserId,
+        hospitalDesk: isHospitalDesk,
+        doctorId: isHospitalStaff ? doctorFilter || undefined : undefined,
+      });
       void refreshLive();
     } catch (err: unknown) {
       setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
@@ -832,7 +990,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       await rowApi(`/api/backend/api/users/appointments/confirmed/${editRow.id}`, "PATCH", body);
       setActionMsg("✓ আপডেট হয়েছে।");
       setEditRow(null);
-      void refresh(mainTab, subTab, true);
+      void refresh(mainTab, subTab, true, {
+        userId: currentUserId,
+        hospitalDesk: isHospitalDesk,
+        doctorId: isHospitalStaff ? doctorFilter || undefined : undefined,
+      });
     } catch (err: unknown) {
       setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
     } finally {
@@ -857,6 +1019,10 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const heroLoading = loading && !collection && !summary;
   const doctorSubline = [doctor?.degree, doctor?.speciality].filter(Boolean).join(" · ");
 
+  // Hospital-desk hero + cash live on the dashboard (HospitalDeskDashboard) —
+  // this page keeps only the doctor filter + appointment list, so no
+  // hospital-hero derived figures are computed here.
+
   // Future-dated booking in the confirm popup can never be served today.
   const confirmRowIso = confirmTarget ? localIso(confirmTarget.row.appointmentDate) : "";
   const todayIso = localIso(new Date());
@@ -874,7 +1040,8 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
 
   return (
     <div className="space-y-5">
-      {/* ---------- Doctor + collection hero (follows the day tab) ---------- */}
+      {/* Hospital-desk hero lives on the dashboard (HospitalDeskDashboard) — this page keeps only the doctor filter + appointment list. */}
+      {!isHospitalDesk && (
       <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-5 text-white shadow-xl sm:rounded-3xl sm:p-7">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/15 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-20 left-1/4 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
@@ -979,16 +1146,18 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
               ➕ নতুন অ্যাপয়েন্টমেন্ট
             </button>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => void toggleLive()}
-                disabled={liveBusy}
-                className={`rounded-xl px-4 py-2 text-sm font-black text-white shadow transition hover:-translate-y-0.5 disabled:opacity-60 ${
-                  live?.live ? "bg-slate-900 hover:bg-slate-700" : "bg-red-600 hover:bg-red-700"
-                }`}
-              >
-                {liveBusy ? "…" : live?.live ? "⏹️ লাইভ বন্ধ করুন" : "🔴 লাইভ শুরু করুন"}
-              </button>
-              {live?.live && liveBoardUrl && (
+              {!isHospitalDesk && (
+                <button
+                  onClick={() => void toggleLive()}
+                  disabled={liveBusy}
+                  className={`rounded-xl px-4 py-2 text-sm font-black text-white shadow transition hover:-translate-y-0.5 disabled:opacity-60 ${
+                    live?.live ? "bg-slate-900 hover:bg-slate-700" : "bg-red-600 hover:bg-red-700"
+                  }`}
+                >
+                  {liveBusy ? "…" : live?.live ? "⏹️ লাইভ বন্ধ করুন" : "🔴 লাইভ শুরু করুন"}
+                </button>
+              )}
+              {live?.live && liveBoardUrl && !isHospitalDesk && (
                 <a
                   href={liveBoardUrl}
                   target="_blank"
@@ -1038,6 +1207,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           </div>
         </div>
       </section>
+      )}
 
       {/* ---------- Missed list — skipped serials, recall to the board after 20 min ---------- */}
       {live?.live && (live?.missed?.length ?? 0) > 0 && (
@@ -1101,40 +1271,60 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       )}
       {approveLocked && (
         <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800 ring-1 ring-amber-200">
-          🔒 সেবা সম্পন্ন শুধু ডাক্তার করবেন — স্টাফ সেবা সম্পন্ন করতে পারবেন না। ডিলিট
-          শুধু যিনি বুকিং নিয়েছেন তিনি করতে পারবেন।
+          {isHospitalDesk
+            ? "🔒 সেবা সম্পন্ন শুধু ডাক্তার করবেন — হাসপাতাল-স্টাফ সেবা সম্পন্ন করতে পারবেন না। ডিলিট শুধু যিনি বুকিং নিয়েছেন তিনি করতে পারবেন।"
+            : "🔒 সেবা সম্পন্ন শুধু ডাক্তার করবেন — স্টাফ সেবা সম্পন্ন করতে পারবেন না। ডিলিট শুধু যিনি বুকিং নিয়েছেন তিনি করতে পারবেন।"}
         </p>
       )}
-      {loading && staffCols.length === 0 ? (
+      {/* Cash cards live on the dashboard for hospital desk (HospitalDeskDashboard) — this page shows only the list. */}
+      {!isHospitalDesk && loading && staffCols.length === 0 ? (
         <section aria-label="লোড হচ্ছে">
           <Skeleton className="mb-2 h-4 w-56" />
           <SkeletonCards count={4} />
         </section>
       ) : (
+        !isHospitalDesk &&
         staffCols.length > 0 && (
           <section>
             <p className="mb-2 px-1 text-sm font-black text-slate-800">
               💵 ক্যাশ কালেকশন — কে কত নিয়েছে (অফলাইন)
             </p>
             <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-              {staffCols.map((b) => (
-                <button
-                  key={b.userId}
-                  type="button"
-                  onClick={() => openStaff(b)}
-                  title={`${b.name}-এর বুকিং দেখুন`}
-                  className="rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 p-4 text-left text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl sm:p-5"
-                >
-                  <p className="truncate text-sm font-black">🧾 {b.name}</p>
-                  <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{taka(b.total)}</p>
-                  <p className="mt-0.5 text-xs font-bold text-white/90">
-                    {toBn(b.count)} জন · বাকি {toBn(b.confirmedCount)} · সম্পন্ন {toBn(b.servedCount)}
-                  </p>
-                  <p className="mt-1.5 text-[11px] font-black text-white underline decoration-white/50 underline-offset-4">
-                    বুকিং দেখুন 👆
-                  </p>
-                </button>
-              ))}
+              {staffCols.map((b) => {
+                const isMe = isHospitalDesk && currentUserId !== "" && b.userId === currentUserId;
+                const isHospitalCard = b.userId.startsWith("hospital:");
+                return (
+                  <button
+                    key={b.userId}
+                    type="button"
+                    onClick={() => openStaff(b)}
+                    title={`${b.name}-এর বুকিং দেখুন`}
+                    className={
+                      isMe
+                        ? "rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-4 text-left text-white shadow-lg ring-2 ring-violet-300 transition hover:-translate-y-0.5 hover:shadow-xl sm:p-5"
+                        : isHospitalCard
+                          ? "rounded-2xl bg-gradient-to-br from-sky-600 via-blue-600 to-indigo-600 p-4 text-left text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl sm:p-5"
+                          : "rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 p-4 text-left text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl sm:p-5"
+                    }
+                  >
+                    <p className="truncate text-sm font-black">
+                      {isHospitalCard ? "🏥" : "🧾"} {b.name}
+                      {isMe && (
+                        <span className="ml-1.5 rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-violet-700">
+                          আমি
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{taka(b.total)}</p>
+                    <p className="mt-0.5 text-xs font-bold text-white/90">
+                      {toBn(b.count)} জন · বাকি {toBn(b.confirmedCount)} · সম্পন্ন {toBn(b.servedCount)}
+                    </p>
+                    <p className="mt-1.5 text-[11px] font-black text-white underline decoration-white/50 underline-offset-4">
+                      বুকিং দেখুন 👆
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </section>
         )
@@ -1148,6 +1338,89 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         <p className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">
           {actionErr}
         </p>
+      )}
+
+      {/* Hospital desk: quick booking from the list page too (full hero + cash live on the dashboard). */}
+      {isHospitalDesk && (
+        <section className="flex flex-col gap-2 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <p className="text-sm font-black text-slate-800">➕ নতুন অ্যাপয়েন্টমেন্ট</p>
+            <p className="mt-0.5 text-xs font-bold text-slate-500">
+              ডাক্তার বেছে সরাসরি বুকিং + SMS রসিদ — হিসাব ড্যাশবোর্ডে দেখুন।
+            </p>
+          </div>
+          <button
+            onClick={() => setBookingOpen(true)}
+            className="shrink-0 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-black text-white shadow transition hover:-translate-y-0.5 hover:shadow-lg"
+          >
+            ➕ নতুন অ্যাপয়েন্টমেন্ট
+          </button>
+        </section>
+      )}
+
+      {/* ---------- Hospital-staff doctor filter: today's available doctors ---------- */}
+      {isHospitalStaff && (
+        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-black text-slate-800">🩺 ডাক্তার বেছে নিন — নির্দিষ্ট ডাক্তারের তালিকা দেখুন</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">
+                আজ উপস্থিত ডাক্তারদের তালিকা — একজন বেছে নিলে শুধু তার অ্যাপয়েন্টমেন্ট তালিকা দেখাবে।
+              </p>
+            </div>
+            {doctorFilter && (
+              <button
+                type="button"
+                onClick={() => switchDoctor("")}
+                className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600 ring-1 ring-slate-200 hover:bg-slate-200"
+              >
+                ✕ সব ডাক্তার
+              </button>
+            )}
+          </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="flex-1">
+              <span className="sr-only">ডাক্তার বেছে নিন</span>
+              <select
+                value={doctorFilter}
+                onChange={(e) => switchDoctor(e.target.value)}
+                disabled={doctorLoading}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-800 focus:border-violet-500 focus:outline-none disabled:opacity-60"
+              >
+                <option value="">🏥 সব ডাক্তার — আজকের পূর্ণ তালিকা</option>
+                {doctorOptions
+                  .filter((d) => d.availableToday)
+                  .map((d) => (
+                    <option key={d.id} value={d.id}>
+                      ✅ {d.name}
+                      {d.speciality ? ` — ${d.speciality}` : ""} (আজ উপস্থিত)
+                    </option>
+                  ))}
+                {doctorOptions
+                  .filter((d) => !d.availableToday)
+                  .map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                      {d.speciality ? ` — ${d.speciality}` : ""} (আজ বন্ধ)
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <p className="shrink-0 rounded-full bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-700 ring-1 ring-violet-100">
+              {doctorLoading
+                ? "লোড হচ্ছে…"
+                : doctorOptions.length === 0
+                  ? "ডাক্তার পাওয়া যায়নি"
+                  : `আজ উপস্থিত: ${toBn(doctorOptions.filter((d) => d.availableToday).length)} জন`}
+            </p>
+          </div>
+          {doctorFilter && (
+            <p className="mt-2 rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-800 ring-1 ring-violet-100">
+              🩺 {doctorOptions.find((d) => d.id === doctorFilter)?.name ?? "ডাক্তার"}-এর তালিকা দেখছেন — শুধু
+              অ্যাপয়েন্টমেন্ট তালিকা ফিল্টার হয়েছে (হিসাব ড্যাশবোর্ডে দেখুন)।
+            </p>
+          )}
+        </section>
       )}
 
       {/* ---------- Main tabs: confirmed only ---------- */}
@@ -1205,6 +1478,12 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                     readonly={subTab === "DONE" || !!r.servedAt}
                     lockApprove={approveLocked}
                     canDelete={isOwnBooking(r)}
+                    canEdit={!isHospitalDesk || isOwnBooking(r)}
+                    editTip={
+                      isHospitalDesk && !isOwnBooking(r)
+                        ? `👤 ${r.createdByName?.trim() || "অন্য স্টাফ"} যোগ করেছেন — শুধু তিনি এডিট করতে পারবেন`
+                        : "এডিট"
+                    }
                     deleteTip={
                       !isOwnBooking(r)
                         ? `👤 ${r.createdByName?.trim() || "অন্য স্টাফ"} যোগ করেছেন — শুধু তিনি ডিলিট করতে পারবেন`
@@ -1231,6 +1510,12 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
               readonly={subTab === "DONE" || !!r.servedAt}
               lockApprove={approveLocked}
               canDelete={isOwnBooking(r)}
+              canEdit={!isHospitalDesk || isOwnBooking(r)}
+              editTip={
+                isHospitalDesk && !isOwnBooking(r)
+                  ? `👤 ${r.createdByName?.trim() || "অন্য স্টাফ"} যোগ করেছেন — শুধু তিনি এডিট করতে পারবেন`
+                  : "এডিট"
+              }
               deleteTip={
                 !isOwnBooking(r)
                   ? `👤 ${r.createdByName?.trim() || "অন্য স্টাফ"} যোগ করেছেন — শুধু তিনি ডিলিট করতে পারবেন`
@@ -1355,7 +1640,8 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="min-w-0 truncate text-lg font-black text-slate-900">
-                  🧾 {staffRows?.name ?? staffView.name}
+                  {staffView.userId.startsWith("hospital:") ? "🏥 " : "🧾 "}
+                  {staffRows?.name ?? staffView.name}
                 </p>
                 <button
                   onClick={() => setStaffView(null)}
@@ -1387,6 +1673,34 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                 </p>
               ) : staffRows ? (
                 <div className="mt-3 space-y-4">
+                  {staffRows.byDoctor.length > 0 && (
+                    <section className="rounded-2xl bg-violet-50 p-3 ring-1 ring-violet-100">
+                      <p className="px-1 text-sm font-black text-violet-900">
+                        🩺 কোন ডাক্তারের জন্য কত
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
+                        {staffRows.byDoctor.map((d) => (
+                          <li
+                            key={d.doctorId}
+                            className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-violet-100"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-black text-slate-900">
+                                {d.doctorName}
+                              </span>
+                              <span className="block truncate text-[11px] font-bold text-slate-500">
+                                {toBn(d.count)} জন · বাকি {toBn(d.confirmedCount)} · সম্পন্ন{" "}
+                                {toBn(d.servedCount)}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-sm font-black text-violet-700">
+                              {taka(d.total)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
                   <StaffRowGroup
                     title={`⏳ বাকি (${toBn(staffRows.confirmed.length)} জন · ${taka(staffRows.confirmed.reduce((s, r) => s + (r.amount ?? 0), 0))})`}
                     rows={staffRows.confirmed}
@@ -1758,6 +2072,8 @@ function AppointmentRow({
   readonly,
   lockApprove,
   canDelete,
+  canEdit = true,
+  editTip = "এডিট",
   deleteTip,
   showSkip,
   onSkip,
@@ -1770,6 +2086,8 @@ function AppointmentRow({
   readonly: boolean;
   lockApprove: boolean;
   canDelete: boolean;
+  canEdit?: boolean;
+  editTip?: string;
   deleteTip: string;
   /** Today's live-current row — gets the not-present skip button + highlight. */
   showSkip: boolean;
@@ -1866,8 +2184,9 @@ function AppointmentRow({
             <CheckIcon />
           </HoverAction>
           <HoverAction
-            label="এডিট"
+            label={editTip}
             onClick={onEdit}
+            disabled={!canEdit}
             className="bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
           >
             <PencilIcon />
@@ -1933,6 +2252,12 @@ function StaffRowGroup({
                 <span className="block truncate text-xs text-slate-500">
                   📞 {r.contactPhone} · {bnDateLabel(localIso(r.appointmentDate))}
                 </span>
+                {r.doctorName?.trim() && (
+                  <span className="mt-0.5 block truncate text-[11px] font-bold text-violet-700">
+                    🩺 {r.doctorName.trim()}
+                    {r.doctorSpeciality?.trim() ? ` · ${r.doctorSpeciality.trim()}` : ""}
+                  </span>
+                )}
               </span>
               <span className="shrink-0 text-sm font-black text-emerald-700">{taka(r.amount ?? 0)}</span>
             </li>

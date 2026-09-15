@@ -30,6 +30,9 @@ export default async function DashboardLayout({
   } else if (data.session.role === "HOSPITAL" && data.profile?.hospitalProfile?.slug?.trim()) {
     portalSubdomain = data.profile.hospitalProfile.slug.trim();
     portalKind = "hospital";
+  } else if (data.session.role === "HOSPITAL_STAFF") {
+    const slug = data.profile?.staffHospital?.slug?.trim() || data.profile?.hospitalProfile?.slug?.trim();
+    if (slug) { portalSubdomain = slug; portalKind = "hospital"; }
   }
 
   // Header avatar: the doctor's profile picture (own profile for DOCTOR,
@@ -38,7 +41,7 @@ export default async function DashboardLayout({
   const headerPicture =
     data.session.role === "DOCTOR"
       ? (data.profile?.doctorProfile?.profilePicture ?? null)
-      : data.session.role === "DOCTOR_STAFF"
+      : data.session.role === "DOCTOR_STAFF" || data.session.role === "HOSPITAL_STAFF"
         ? (data.profile?.profilePicture ?? null)
         : undefined;
 
