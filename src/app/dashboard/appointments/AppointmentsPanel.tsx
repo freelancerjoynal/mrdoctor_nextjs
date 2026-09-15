@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toBn, bnDateLabel, BN_WEEKDAYS } from "@/lib/bn";
@@ -321,7 +321,9 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   // (fetched once per login, shared by all panels — no refetch on revisit).
   const sessionProfile = useAppSelector((s) => s.profile.data);
   const doctor = sessionProfile?.staffDoctor ?? sessionProfile?.doctorProfile ?? null;
-  const approveLocked = sessionProfile?.role === "DOCTOR_STAFF" && sessionProfile?.canApprove === false;
+  // Serve lock: only the doctor may mark service-done — no staffer can,
+  // regardless of flags. Delete stays owner-only; everything else is shared.
+  const approveLocked = sessionProfile?.role === "DOCTOR_STAFF";
   // Owner-only delete: nobody may delete a booking they didn't add — not even
   // the doctor. Only the adder (createdBy) may delete it. Legacy rows without
   // createdBy stay deletable (no owner recorded).
@@ -357,6 +359,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     live: boolean;
     current: { serial: number; patientName: string } | null;
     missed: LiveMissed[];
+    upcoming: { serial: number; patientName: string }[];
     waitingCount: number;
   } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
@@ -411,6 +414,12 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     if (kind === "delete" && !isOwnBooking(row)) {
       const who = row.createdByName?.trim() ? ` (${row.createdByName.trim()})` : "";
       setActionErr(`⛔ এই বুকিং${who} যোগ করেছেন — শুধু তিনি ডিলিট করতে পারবেন।`);
+      return;
+    }
+    // Serve lock: staff can never mark service-done (belt + suspenders with
+    // the disabled button — the server enforces this too).
+    if (kind === "done" && approveLocked) {
+      setActionErr("⛔ সেবা সম্পন্ন শুধু ডাক্তার করবেন।");
       return;
     }
     // Serial rule: serve the smallest pending serial first. Jumping ahead
@@ -590,11 +599,12 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           live: boolean;
           current: { serial: number; patientName: string } | null;
           missed?: LiveMissed[];
+          upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
         };
       } | null;
       if (res.ok && json?.data) {
-        setLive({ ...json.data, missed: json.data.missed ?? [] });
+        setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
       }
     } catch {
       /* live badge stays hidden until it loads */
@@ -618,12 +628,13 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           live: boolean;
           current: { serial: number; patientName: string } | null;
           missed?: LiveMissed[];
+          upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
         };
         error?: string;
       } | null;
       if (!res.ok) throw new Error(json?.error || "লাইভ চালু/বন্ধ করা যায়নি।");
-      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [] });
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
       setActionMsg(json?.data?.live ? "🔴 লাইভ সিরিয়াল চালু হয়েছে — বোর্ডে দেখুন।" : "⏹️ লাইভ সিরিয়াল বন্ধ হয়েছে।");
     } catch (err: unknown) {
       setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
@@ -648,13 +659,14 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           live: boolean;
           current: { serial: number; patientName: string } | null;
           missed?: LiveMissed[];
+          upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
           skipped?: { serial: number; patientName: string } | null;
         };
         error?: string;
       } | null;
       if (!res.ok) throw new Error(json?.error || "স্কিপ করা যায়নি।");
-      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [] });
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
       const skippedName = json?.data?.skipped?.patientName?.trim() || null;
       const skippedNo = json?.data?.skipped?.serial ?? skippedSerial;
       setActionMsg(
@@ -686,13 +698,14 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           live: boolean;
           current: { serial: number; patientName: string } | null;
           missed?: LiveMissed[];
+          upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
           recalled?: { serial: number; patientName: string } | null;
         };
         error?: string;
       } | null;
       if (!res.ok) throw new Error(json?.error || "ফিরিয়ে আনা যায়নি।");
-      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [] });
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
       const backName = json?.data?.recalled?.patientName?.trim() || "রোগী";
       const backNo = json?.data?.recalled?.serial ?? serial;
       setActionMsg(`✅ ${backName} (সিরিয়াল ${toBn(backNo)}) বোর্ডে ফিরেছেন।`);
@@ -703,30 +716,64 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     }
   };
 
-  // Live counters: quietly re-pull tab counts + boxes + live board every 30s
-  // and whenever the tab regains focus, so bookings (and the 20-minute
-  // punishment countdowns) stay fresh no matter which device acted.
+  // Board-speed sync: the public live board polls every 5s, so the panel does
+  // the same — cheap counts + live status each tick, and the heavier list /
+  // boxes only re-pull when the signature actually changed (new booking,
+  // serve, skip, recall from any device). Tab focus syncs immediately.
+  const lastSig = useRef<string>("");
+  const fastTick = useCallback(async () => {
+    try {
+      const [confirmed, served] = await Promise.all([confirmedCountsApi(), servedCountsApi()]);
+      const nextCounts = { today: confirmed.today, tomorrow: confirmed.tomorrow, last30: served.last30 };
+      const res = await apiFetch("/api/backend/api/users/serial-live/status");
+      const json = (await res.json().catch(() => null)) as {
+        data?: {
+          live: boolean;
+          current: { serial: number; patientName: string } | null;
+          missed?: LiveMissed[];
+          upcoming?: { serial: number; patientName: string }[];
+          waitingCount: number;
+        };
+      } | null;
+      const cur = res.ok && json?.data ? json.data : null;
+      const sig = [
+        nextCounts.today,
+        nextCounts.tomorrow,
+        nextCounts.last30,
+        cur
+          ? `${cur.live}:${cur.current?.serial ?? "-"}:${cur.waitingCount}:${(cur.missed ?? []).length}:${(cur.upcoming ?? []).map((u) => u.serial).join(",")}`
+          : "off",
+      ].join("|");
+      setCounts(nextCounts);
+      if (cur) setLive({ ...cur, missed: cur.missed ?? [], upcoming: cur.upcoming ?? [] });
+      if (sig !== lastSig.current) {
+        lastSig.current = sig;
+        loadList(mainTab, subTab).catch(() => {});
+        loadStaff(mainTab).catch(() => {});
+        collectionApi()
+          .then((c) => setCollection(c))
+          .catch(() => {});
+        summaryApi()
+          .then((s) => setSummary(s))
+          .catch(() => {});
+      }
+    } catch {
+      /* keep last frame on network blips */
+    }
+  }, [loadList, loadStaff, mainTab, subTab]);
+
   useEffect(() => {
-    const tick = () => {
-      loadCounts().catch(() => {});
-      loadStaff(mainTab).catch(() => {});
-      collectionApi()
-        .then((c) => setCollection(c))
-        .catch(() => {});
-      summaryApi()
-        .then((s) => setSummary(s))
-        .catch(() => {});
-      refreshLive().catch(() => {});
-    };
-    const id = setInterval(tick, 30000);
-    window.addEventListener("focus", tick);
+    const id = setInterval(() => void fastTick(), 5000);
+    const onFocus = () => void fastTick();
+    window.addEventListener("focus", onFocus);
     return () => {
       clearInterval(id);
-      window.removeEventListener("focus", tick);
+      window.removeEventListener("focus", onFocus);
     };
-  }, [loadCounts, loadStaff, mainTab, refreshLive]);
+  }, [fastTick]);
 
-  /** Service-done / delete / cancel-request from the confirm popup. */  const runConfirmAction = async () => {
+  /** Service-done / delete / cancel-request from the confirm popup. */
+  const runConfirmAction = async () => {
     if (!confirmTarget || acting) return;
     const { row, kind } = confirmTarget;
     setActing(true);
@@ -964,6 +1011,21 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                   : ` · অপেক্ষায় ${toBn(live.waitingCount)} জন`}
               </p>
             )}
+            {/* Live waiting list — same board data as the TV (auto-includes missed at the tail) */}
+            {live?.live && (live?.upcoming?.length ?? 0) > 0 && (
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-white">
+                <span className="text-white/80">⏭️ পরবর্তী:</span>
+                {(live?.upcoming ?? []).slice(0, 4).map((u) => (
+                  <span
+                    key={u.serial}
+                    className="rounded-full bg-white/20 px-2.5 py-1 text-white"
+                    title={`${u.patientName} — সিরিয়াল ${toBn(u.serial)}`}
+                  >
+                    {toBn(u.serial)} · {u.patientName}
+                  </span>
+                ))}
+              </p>
+            )}
             {live?.live && (live?.missed?.length ?? 0) > 0 && (
               <p
                 className="mt-2 rounded-xl bg-black/15 px-3 py-2 text-sm font-bold text-amber-200 ring-1 ring-white/20"
@@ -1039,7 +1101,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       )}
       {approveLocked && (
         <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800 ring-1 ring-amber-200">
-          🔒 আপনার অনুমোদন সীমাবদ্ধ — সেবা সম্পন্নের অনুমোদন শুধু ডাক্তার দেবেন। ডিলিট
+          🔒 সেবা সম্পন্ন শুধু ডাক্তার করবেন — স্টাফ সেবা সম্পন্ন করতে পারবেন না। ডিলিট
           শুধু যিনি বুকিং নিয়েছেন তিনি করতে পারবেন।
         </p>
       )}
