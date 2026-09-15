@@ -1,5 +1,6 @@
 import { FadeIn } from "@/components/motion/FadeIn";
 import { RoleBadge } from "./RoleBadge";
+import { HeaderAvatar } from "./HeaderAvatar";
 import type { Session, UserProfile } from "@/lib/auth/types";
 import { getDisplayName } from "@/lib/auth/displayName";
 import { ROLE_META } from "@/lib/auth/constants";
@@ -14,6 +15,13 @@ export function ProfileCard({
 }) {
   const meta = ROLE_META[session.role];
   const name = getDisplayName(session, profile);
+  // Intro photo: doctor's own picture, staff's uploaded photo, else emoji badge.
+  const introPicture =
+    session.role === "DOCTOR"
+      ? (profile?.doctorProfile?.profilePicture ?? null)
+      : session.role === "DOCTOR_STAFF"
+        ? (profile?.profilePicture ?? null)
+        : null;
   const subline =
     session.role === "DOCTOR" && profile?.doctorProfile
       ? [profile.doctorProfile.degree, profile.doctorProfile.speciality]
@@ -27,11 +35,19 @@ export function ProfileCard({
         <div className="rounded-2xl bg-white/95 p-4 backdrop-blur sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-              <div
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${meta.gradient} text-xl text-white shadow-lg sm:h-14 sm:w-14 sm:text-2xl`}
-              >
-                {meta.emoji}
-              </div>
+              {introPicture ? (
+                <HeaderAvatar
+                  profilePicture={introPicture}
+                  name={name}
+                  className="h-12 w-12 rounded-2xl sm:h-14 sm:w-14"
+                />
+              ) : (
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${meta.gradient} text-xl text-white shadow-lg sm:h-14 sm:w-14 sm:text-2xl`}
+                >
+                  {meta.emoji}
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="truncate text-base font-black text-slate-900 sm:text-lg">
                   {name}

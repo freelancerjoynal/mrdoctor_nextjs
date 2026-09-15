@@ -6,6 +6,8 @@ export interface LiveEntry {
   chamberName?: string | null;
   hospitalName?: string | null;
   bookingType?: "ONLINE" | "OFFLINE" | null;
+  /** ISO skip time — set for explicitly skipped ("not present") serials. */
+  skippedAt?: string | null;
 }
 
 export interface LiveSnapshot {
@@ -19,6 +21,8 @@ export interface LiveSnapshot {
   current: LiveEntry | null;
   next: LiveEntry | null;
   upcoming: LiveEntry[];
+  /** Unserved serials below the current one — marked "not present", asked to wait. */
+  missed: LiveEntry[];
   waitingCount: number;
   totalToday: number;
   liveUpdatedAt?: string | null;

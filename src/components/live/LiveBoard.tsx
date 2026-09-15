@@ -142,6 +142,7 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
 
   const bookingUrl = origin ? `${origin}/s/${encodeURIComponent(snap.doctor.username)}#serial` : "";
   const nextFour = snap.upcoming.slice(0, 4);
+  const missed = snap.missed ?? [];
   const portrait = doctorPortrait(snap.doctor.profilePicture);
   const avatarFallback = fallbackAvatar();
 
@@ -333,32 +334,75 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
               <img src="/images/logo.png" alt="MrDoctor" className="h-[3.75rem] w-auto object-contain sm:h-[4.5rem]" />
             </div>
             <div className="grid min-h-0 flex-1 grid-cols-[0.85fr_1.15fr] gap-3 sm:gap-4">
-              {/* Doctor image (compact) */}
-              <div className="relative min-h-0 overflow-hidden rounded-[1.75rem] border border-white/15 shadow-2xl">
-                {/* eslint-disable-next-line @next/next/no-img-element -- doctor-uploaded portrait, bundled fallback */}
-                <img
-                  src={portrait}
-                  alt={snap.doctor.name}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  onError={(e) => {
-                    if (!e.currentTarget.src.endsWith(avatarFallback)) {
-                      e.currentTarget.src = avatarFallback;
-                    }
-                  }}
-                />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pb-2.5 pt-8 text-center">
-                  <p className="truncate font-black text-white" style={{ fontSize: "clamp(0.85rem, 1.9vw, 1.2rem)" }}>
-                    {snap.doctor.name}
-                  </p>
-                  {snap.doctor.speciality && (
-                    <p className="truncate text-emerald-200/90" style={{ fontSize: "clamp(0.7rem, 1.5vw, 0.95rem)" }}>
-                      {snap.doctor.speciality}
+              {/* Doctor image (shorter when the missed list shows) + missed panel */}
+              <div className="flex min-h-0 min-w-0 flex-col gap-3 sm:gap-4">
+                <div
+                  className={`relative overflow-hidden rounded-[1.75rem] border border-white/15 shadow-2xl ${
+                    missed.length > 0 ? "min-h-0 flex-[2]" : "min-h-0 flex-1"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- doctor-uploaded portrait, bundled fallback */}
+                  <img
+                    src={portrait}
+                    alt={snap.doctor.name}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onError={(e) => {
+                      if (!e.currentTarget.src.endsWith(avatarFallback)) {
+                        e.currentTarget.src = avatarFallback;
+                      }
+                    }}
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pb-2.5 pt-8 text-center">
+                    <p className="truncate font-black text-white" style={{ fontSize: "clamp(0.85rem, 1.9vw, 1.2rem)" }}>
+                      {snap.doctor.name}
                     </p>
-                  )}
+                    {snap.doctor.speciality && (
+                      <p className="truncate text-emerald-200/90" style={{ fontSize: "clamp(0.7rem, 1.5vw, 0.95rem)" }}>
+                        {snap.doctor.speciality}
+                      </p>
+                    )}
+                  </div>
+                  <span className="absolute left-2.5 top-2.5 rounded-full bg-red-600 px-2.5 py-0.5 text-[11px] font-black tracking-widest text-white shadow-lg">
+                    ● LIVE
+                  </span>
                 </div>
-                <span className="absolute left-2.5 top-2.5 rounded-full bg-red-600 px-2.5 py-0.5 text-[11px] font-black tracking-widest text-white shadow-lg">
-                  ● LIVE
-                </span>
+                {/* Missed panel — skipped serials, asked to wait for their turn */}
+                {missed.length > 0 && (
+                  <div className="flex min-h-0 flex-[3] flex-col overflow-hidden rounded-[1.75rem] border border-amber-300/30 bg-amber-950/60 p-3 shadow-2xl backdrop-blur">
+                    <p className="shrink-0 font-black text-amber-300" style={{ fontSize: "clamp(0.9rem, 2vw, 1.3rem)" }}>
+                      ⏳ উপস্থিত হননি
+                    </p>
+                    <p className="shrink-0 font-bold text-amber-100/80" style={{ fontSize: "clamp(0.7rem, 1.6vw, 1rem)" }}>
+                      অপেক্ষা করুন, ডাকা হবে
+                    </p>
+                    <ul className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-hidden">
+                      {missed.slice(0, 5).map((m) => (
+                        <li
+                          key={m.serial}
+                          className="flex min-w-0 items-center gap-2 rounded-xl bg-black/30 px-2.5 py-1"
+                        >
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 font-black tabular-nums text-emerald-950"
+                            style={{ fontSize: "clamp(0.8rem, 1.8vw, 1.1rem)" }}
+                          >
+                            {toBn(m.serial)}
+                          </span>
+                          <span
+                            className="min-w-0 flex-1 truncate font-bold text-white"
+                            style={{ fontSize: "clamp(0.8rem, 1.8vw, 1.15rem)" }}
+                          >
+                            {m.patientName}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {missed.length > 5 && (
+                      <p className="mt-1.5 shrink-0 text-center font-bold text-amber-200/80" style={{ fontSize: "clamp(0.7rem, 1.6vw, 1rem)" }}>
+                        …আরো {toBn(missed.length - 5)} জন
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               {/* QR card — same look as the public website: dark emerald,
                   amber eyebrow, white QR box, instructions */}

@@ -44,6 +44,8 @@ export interface UserProfile {
   email: string;
   /** Display name for roles without a dedicated profile table (staff etc.). Email is immutable. */
   name?: string | null;
+  /** Profile photo for roles without a dedicated profile table (staff upload it like the doctor does). */
+  profilePicture?: string | null;
   role: Role;
   isVerified: boolean;
   createdAt: string;

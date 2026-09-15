@@ -9,11 +9,39 @@ import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { Skeleton, SkeletonCards, SkeletonRows } from "@/components/dashboard/Skeleton";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { fetchProfile } from "@/lib/store/profileSlice";
+import { buildPortalUrl } from "@/lib/portal";
 import { LocalBookingPanel } from "../local-booking/LocalBookingPanel";
 
 type MainTab = "today" | "tomorrow" | "last30";
 type SubTab = "ALL" | "ONLINE" | "OFFLINE" | "DONE";
 type RowAction = "done" | "delete" | "request";
+
+/** Punishment clock: a skipped serial returns to the board after 20 minutes. */
+const RECALL_COOLDOWN_MS = 20 * 60 * 1000;
+
+interface LiveMissed {
+  serial: number;
+  patientName: string;
+  skippedAt?: string | null;
+}
+
+/** ms left on the 20-minute punishment clock (null = no recorded skip → recallable now). */
+function cooldownRemainingMs(skippedAt?: string | null): number | null {
+  if (!skippedAt) return null;
+  const t = new Date(skippedAt).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, RECALL_COOLDOWN_MS - (Date.now() - t));
+}
+
+/** "৫ মিনিট আগে মিস" style label for a skip timestamp. */
+function missedAgoBn(skippedAt?: string | null): string {
+  if (!skippedAt) return "সময় রেকর্ড নেই";
+  const t = new Date(skippedAt).getTime();
+  if (Number.isNaN(t)) return "সময় রেকর্ড নেই";
+  const mins = Math.floor((Date.now() - t) / 60000);
+  if (mins < 1) return "এইমাত্র মিস";
+  return `${toBn(mins)} মিনিট আগে মিস`;
+}
 
 interface Bucket {
   total: number;
@@ -294,6 +322,23 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const sessionProfile = useAppSelector((s) => s.profile.data);
   const doctor = sessionProfile?.staffDoctor ?? sessionProfile?.doctorProfile ?? null;
   const approveLocked = sessionProfile?.role === "DOCTOR_STAFF" && sessionProfile?.canApprove === false;
+  // Owner-only delete: nobody may delete a booking they didn't add — not even
+  // the doctor. Only the adder (createdBy) may delete it. Legacy rows without
+  // createdBy stay deletable (no owner recorded).
+  const currentUserId = sessionProfile?.id ?? "";
+  const isOwnBooking = (row: ConfirmedRow) =>
+    !row.createdBy || (currentUserId !== "" && row.createdBy === currentUserId);
+  // Live board URL: `<username>.domain.com/live` (middleware rewrites to `/s/<username>/live`).
+  // SSR-safe: server renders `/s/<username>/live`, client upgrades to subdomain after mount
+  // (same pattern as DashboardFooter — window.location.host doesn't exist during SSR).
+  const liveUsername = doctor?.username?.trim().toLowerCase() ?? "";
+  const serverSafeLiveUrl = liveUsername ? `/s/${encodeURIComponent(liveUsername)}/live` : null;
+  const [liveBoardUrl, setLiveBoardUrl] = useState<string | null>(serverSafeLiveUrl);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional post-hydration upgrade to the subdomain URL
+    if (liveUsername) setLiveBoardUrl(`${buildPortalUrl(liveUsername)}/live`);
+    else setLiveBoardUrl(null);
+  }, [liveUsername]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [collection, setCollection] = useState<CollectionSummary | null>(null);
   const [staffCols, setStaffCols] = useState<StaffBucket[]>([]);
@@ -311,6 +356,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const [live, setLive] = useState<{
     live: boolean;
     current: { serial: number; patientName: string } | null;
+    missed: LiveMissed[];
     waitingCount: number;
   } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
@@ -331,6 +377,21 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const [actionMsg, setActionMsg] = useState("");
   const [actionErr, setActionErr] = useState("");
 
+  // Not-present rows leave the current (today) list — they live only in the
+  // missed section until recalled/served. Scoped to today + live board ON:
+  // other days' serials restart at 1, so serial numbers alone never match.
+  const missedSerials = useMemo(
+    () => new Set((live?.missed ?? []).map((m) => m.serial)),
+    [live],
+  );
+  const visibleRows = useMemo(
+    () =>
+      mainTab === "today" && live?.live
+        ? rows.filter((r) => !missedSerials.has(r.serial))
+        : rows,
+    [rows, mainTab, live, missedSerials],
+  );
+
   const openEdit = (row: ConfirmedRow) => {
     setActionMsg("");
     setActionErr("");
@@ -344,13 +405,28 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
 
   const openConfirm = (row: ConfirmedRow, kind: RowAction) => {
     setActionErr("");
+    setActionMsg("");
+    // Staff can't delete another staffer's booking — stop here so the popup
+    // never opens for a forbidden row (belt + suspenders with the disabled button).
+    if (kind === "delete" && !isOwnBooking(row)) {
+      const who = row.createdByName?.trim() ? ` (${row.createdByName.trim()})` : "";
+      setActionErr(`⛔ এই বুকিং${who} যোগ করেছেন — শুধু তিনি ডিলিট করতে পারবেন।`);
+      return;
+    }
     // Serial rule: serve the smallest pending serial first. Jumping ahead
     // (e.g. approving 3 while 2 is still pending) triggers a warning.
+    // Skipped ("not present") serials sit below the live current — they wait
+    // for the patient to return, so they never trigger the warning.
     let breaksOrder = false;
     let expectedSerial: number | null = null;
     if (kind === "done") {
-      const pending = rows.filter(
-        (r) => !r.servedAt && r.status !== "DONE" && Number.isFinite(r.serial),
+      const liveCurrent = mainTab === "today" ? live?.current?.serial ?? null : null;
+      const pending = visibleRows.filter(
+        (r) =>
+          !r.servedAt &&
+          r.status !== "DONE" &&
+          Number.isFinite(r.serial) &&
+          !(liveCurrent != null && r.serial < liveCurrent),
       );
       if (pending.length > 0) {
         expectedSerial = Math.min(...pending.map((r) => r.serial));
@@ -448,32 +524,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     };
   }, [dispatch]);
 
-  // Live counters: quietly re-pull tab counts + boxes every 30s and whenever
-  // the tab regains focus, so bookings from any device show up by themselves.
-  useEffect(() => {
-    const tick = () => {
-      loadCounts().catch(() => {});
-      loadStaff(mainTab).catch(() => {});
-      collectionApi()
-        .then((c) => setCollection(c))
-        .catch(() => {});
-      summaryApi()
-        .then((s) => setSummary(s))
-        .catch(() => {});
-    };
-    const id = setInterval(tick, 30000);
-    window.addEventListener("focus", tick);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", tick);
-    };
-  }, [loadCounts, loadStaff, mainTab]);
-
   // Last-30-days list grouped by day (only days that have rows appear).
   const dayGroups = useMemo(() => {
     if (mainTab !== "last30") return null;
     const map = new Map<string, ConfirmedRow[]>();
-    for (const r of rows) {
+    for (const r of visibleRows) {
       const key = localIso(r.appointmentDate);
       if (!key) continue;
       const list = map.get(key);
@@ -481,7 +536,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       else map.set(key, [r]);
     }
     return [...map.entries()].map(([date, list]) => ({ date, list }));
-  }, [mainTab, rows]);
+  }, [mainTab, visibleRows]);
 
   const switchMain = (t: MainTab) => {
     setMainTab(t);
@@ -531,9 +586,16 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     try {
       const res = await apiFetch("/api/backend/api/users/serial-live/status");
       const json = (await res.json().catch(() => null)) as {
-        data?: { live: boolean; current: { serial: number; patientName: string } | null; waitingCount: number };
+        data?: {
+          live: boolean;
+          current: { serial: number; patientName: string } | null;
+          missed?: LiveMissed[];
+          waitingCount: number;
+        };
       } | null;
-      if (res.ok && json?.data) setLive(json.data);
+      if (res.ok && json?.data) {
+        setLive({ ...json.data, missed: json.data.missed ?? [] });
+      }
     } catch {
       /* live badge stays hidden until it loads */
     }
@@ -552,11 +614,16 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         method: "POST",
       });
       const json = (await res.json().catch(() => null)) as {
-        data?: { live: boolean; current: { serial: number; patientName: string } | null; waitingCount: number };
+        data?: {
+          live: boolean;
+          current: { serial: number; patientName: string } | null;
+          missed?: LiveMissed[];
+          waitingCount: number;
+        };
         error?: string;
       } | null;
       if (!res.ok) throw new Error(json?.error || "লাইভ চালু/বন্ধ করা যায়নি।");
-      if (json?.data) setLive(json.data);
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [] });
       setActionMsg(json?.data?.live ? "🔴 লাইভ সিরিয়াল চালু হয়েছে — বোর্ডে দেখুন।" : "⏹️ লাইভ সিরিয়াল বন্ধ হয়েছে।");
     } catch (err: unknown) {
       setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
@@ -565,8 +632,101 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     }
   };
 
-  /** Service-done / delete / cancel-request from the confirm popup. */
-  const runConfirmAction = async () => {
+  /** Skip the current serial ("উপস্থিত নেই") — board jumps to the next serial,
+      the skipped one waits in the missed list until the patient returns. */
+  const skipLive = async () => {
+    if (liveBusy) return;
+    const skippedSerial = live?.current?.serial ?? null;
+    setLiveBusy(true);
+    setActionErr("");
+    try {
+      const res = await apiFetch("/api/backend/api/users/serial-live/skip", {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => null)) as {
+        data?: {
+          live: boolean;
+          current: { serial: number; patientName: string } | null;
+          missed?: LiveMissed[];
+          waitingCount: number;
+          skipped?: { serial: number; patientName: string } | null;
+        };
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(json?.error || "স্কিপ করা যায়নি।");
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [] });
+      const skippedName = json?.data?.skipped?.patientName?.trim() || null;
+      const skippedNo = json?.data?.skipped?.serial ?? skippedSerial;
+      setActionMsg(
+        skippedNo != null
+          ? `⏭️ ${skippedName ? `${skippedName} ` : ""}(সিরিয়াল ${toBn(skippedNo)}) উপস্থিত নেই — পরের সিরিয়াল বোর্ডে গেছে। শাস্তি হিসেবে ২০ মিনিট পর বোর্ডে আনা যাবে।`
+          : "⏭️ স্কিপ করা হয়েছে।",
+      );
+    } catch (err: unknown) {
+      setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
+  /** Recall a missed serial to the live board ("সিরিয়ালে আনুন").
+      Blocked by the server until 20 minutes after the skip (punishment). */
+  const recallLive = async (serial: number) => {
+    if (liveBusy) return;
+    setLiveBusy(true);
+    setActionErr("");
+    try {
+      const res = await apiFetch("/api/backend/api/users/serial-live/recall", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ serial }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        data?: {
+          live: boolean;
+          current: { serial: number; patientName: string } | null;
+          missed?: LiveMissed[];
+          waitingCount: number;
+          recalled?: { serial: number; patientName: string } | null;
+        };
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(json?.error || "ফিরিয়ে আনা যায়নি।");
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [] });
+      const backName = json?.data?.recalled?.patientName?.trim() || "রোগী";
+      const backNo = json?.data?.recalled?.serial ?? serial;
+      setActionMsg(`✅ ${backName} (সিরিয়াল ${toBn(backNo)}) বোর্ডে ফিরেছেন।`);
+    } catch (err: unknown) {
+      setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
+  // Live counters: quietly re-pull tab counts + boxes + live board every 30s
+  // and whenever the tab regains focus, so bookings (and the 20-minute
+  // punishment countdowns) stay fresh no matter which device acted.
+  useEffect(() => {
+    const tick = () => {
+      loadCounts().catch(() => {});
+      loadStaff(mainTab).catch(() => {});
+      collectionApi()
+        .then((c) => setCollection(c))
+        .catch(() => {});
+      summaryApi()
+        .then((s) => setSummary(s))
+        .catch(() => {});
+      refreshLive().catch(() => {});
+    };
+    const id = setInterval(tick, 30000);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", tick);
+    };
+  }, [loadCounts, loadStaff, mainTab, refreshLive]);
+
+  /** Service-done / delete / cancel-request from the confirm popup. */  const runConfirmAction = async () => {
     if (!confirmTarget || acting) return;
     const { row, kind } = confirmTarget;
     setActing(true);
@@ -781,9 +941,9 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
               >
                 {liveBusy ? "…" : live?.live ? "⏹️ লাইভ বন্ধ করুন" : "🔴 লাইভ শুরু করুন"}
               </button>
-              {live?.live && doctor?.username && (
+              {live?.live && liveBoardUrl && (
                 <a
-                  href={`/live/${encodeURIComponent(doctor.username)}`}
+                  href={liveBoardUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-xl bg-white/15 px-4 py-2 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/25"
@@ -804,17 +964,83 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                   : ` · অপেক্ষায় ${toBn(live.waitingCount)} জন`}
               </p>
             )}
+            {live?.live && (live?.missed?.length ?? 0) > 0 && (
+              <p
+                className="mt-2 rounded-xl bg-black/15 px-3 py-2 text-sm font-bold text-amber-200 ring-1 ring-white/20"
+                title="উপস্থিত না থাকা সিরিয়াল — রোগী ফিরলে সেবা দিন"
+              >
+                ⏳ উপস্থিত হননি — অপেক্ষা করুন:{" "}
+                {(live?.missed ?? []).map((m) => `${toBn(m.serial)} · ${m.patientName}`).join(" , ")}
+              </p>
+            )}
           </div>
         </div>
       </section>
+
+      {/* ---------- Missed list — skipped serials, recall to the board after 20 min ---------- */}
+      {live?.live && (live?.missed?.length ?? 0) > 0 && (
+        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:p-5">
+          <p className="text-sm font-black text-slate-800">
+            ⏳ অনুপস্থিত তালিকা — ফিরে এলে সিরিয়ালে আনুন
+          </p>
+          <p className="mt-1 text-xs font-bold text-slate-500">
+            এই তালিকার রোগীরা উপরের অ্যাপয়েন্টমেন্ট তালিকায় দেখা যাবে না।
+          </p>
+          <ul className="mt-3 space-y-2">
+            {(live?.missed ?? []).map((m) => {
+              const remaining = cooldownRemainingMs(m.skippedAt);
+              const cooling = remaining != null && remaining > 0;
+              const waitMins = cooling ? Math.max(1, Math.ceil((remaining as number) / 60000)) : 0;
+              return (
+                <li
+                  key={m.serial}
+                  className="flex flex-col gap-2 rounded-2xl bg-amber-50 p-3 ring-1 ring-amber-200 sm:flex-row sm:items-center sm:gap-3"
+                >
+                  <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-base font-black text-white">
+                      {toBn(m.serial || 0)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-black text-slate-900">{m.patientName}</span>
+                      <span className="block truncate text-xs font-bold text-slate-500">
+                        {missedAgoBn(m.skippedAt)}
+                        {cooling
+                          ? ` — ${m.patientName} সিরিয়াল ${toBn(m.serial)} মিস করেছেন, শাস্তি হিসেবে আরো ${toBn(waitMins)} মিনিট পর বোর্ডে আনা যাবে`
+                          : ` — ${m.patientName} সিরিয়াল ${toBn(m.serial)} মিস করেছেন, এখন বোর্ডে আনা যাবে`}
+                      </span>
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void recallLive(m.serial)}
+                    disabled={cooling || liveBusy}
+                    title={
+                      cooling
+                        ? `শাস্তি হিসেবে আরো ${toBn(waitMins)} মিনিট পর বোর্ডে আনা যাবে`
+                        : "ফিরে এসেছেন — এখনই লাইভ বোর্ডে আনুন"
+                    }
+                    className={`shrink-0 rounded-xl px-4 py-2 text-sm font-black text-white shadow transition disabled:opacity-60 ${
+                      cooling
+                        ? "cursor-not-allowed bg-slate-400"
+                        : "bg-emerald-600 hover:-translate-y-0.5 hover:bg-emerald-700"
+                    }`}
+                  >
+                    {cooling ? `⏳ ${toBn(waitMins)} মিনিট পর` : "🔙 সিরিয়ালে আনুন"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {error && (
         <p className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">{error}</p>
       )}
       {approveLocked && (
         <p className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800 ring-1 ring-amber-200">
-          🔒 আপনার অনুমোদন সীমাবদ্ধ — শুধু কালেকশন (বুকিং) ও আপডেট করতে পারবেন। সেবা
-          সম্পন্ন / ডিলিটের অনুমোদন শুধু ডাক্তার দেবেন।
+          🔒 আপনার অনুমোদন সীমাবদ্ধ — সেবা সম্পন্নের অনুমোদন শুধু ডাক্তার দেবেন। ডিলিট
+          শুধু যিনি বুকিং নিয়েছেন তিনি করতে পারবেন।
         </p>
       )}
       {loading && staffCols.length === 0 ? (
@@ -892,10 +1118,10 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         ))}
       </div>
 
-      {/* ---------- Rows with upfront actions ---------- */}
+      {/* ---------- Rows with upfront actions (missed serials hidden — see missed list) ---------- */}
       {loading ? (
         <SkeletonRows count={6} />
-      ) : rows.length === 0 ? (
+      ) : visibleRows.length === 0 ? (
         <p className="rounded-2xl bg-white p-8 text-center text-slate-500 ring-1 ring-slate-100">
           এই তালিকায় কিছু নেই।
         </p>
@@ -916,6 +1142,14 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                     r={r}
                     readonly={subTab === "DONE" || !!r.servedAt}
                     lockApprove={approveLocked}
+                    canDelete={isOwnBooking(r)}
+                    deleteTip={
+                      !isOwnBooking(r)
+                        ? `👤 ${r.createdByName?.trim() || "অন্য স্টাফ"} যোগ করেছেন — শুধু তিনি ডিলিট করতে পারবেন`
+                        : "ডিলিট"
+                    }
+                    showSkip={false}
+                    onSkip={() => void skipLive()}
                     onPick={setSelected}
                     onDone={() => openConfirm(r, "done")}
                     onEdit={() => openEdit(r)}
@@ -928,12 +1162,29 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         </div>
       ) : (
         <ul className="space-y-2">
-          {rows.map((r) => (
+          {visibleRows.map((r) => (
             <AppointmentRow
               key={r.id}
               r={r}
               readonly={subTab === "DONE" || !!r.servedAt}
               lockApprove={approveLocked}
+              canDelete={isOwnBooking(r)}
+              deleteTip={
+                !isOwnBooking(r)
+                  ? `👤 ${r.createdByName?.trim() || "অন্য স্টাফ"} যোগ করেছেন — শুধু তিনি ডিলিট করতে পারবেন`
+                  : "ডিলিট"
+              }
+              // Not-present only applies to today's live board: the row that is
+              // currently on the board gets the skip button + highlight.
+              showSkip={
+                mainTab === "today" &&
+                subTab !== "DONE" &&
+                !r.servedAt &&
+                !!live?.live &&
+                live?.current != null &&
+                r.serial === live.current.serial
+              }
+              onSkip={() => void skipLive()}
               onPick={setSelected}
               onDone={() => openConfirm(r, "done")}
               onEdit={() => openEdit(r)}
@@ -1145,7 +1396,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                   !confirmTarget.breaksOrder &&
                   "নিশ্চিত করলে এই বুকিং সেবা-সম্পন্ন তালিকায় চলে যাবে।"}
                 {confirmTarget.kind === "delete" &&
-                  "নিশ্চিত করলে অফলাইন বুকিংটি ডিলিট হবে (লোকাল বাতিল তালিকায় সেভ থাকবে)।"}
+                  `নিশ্চিত করলে অফলাইন বুকিংটি ডিলিট হবে (লোকাল বাতিল তালিকায় সেভ থাকবে)।${confirmTarget.row.createdByName?.trim() ? ` বুকিং নিয়েছেন: ${confirmTarget.row.createdByName.trim()}।` : ""}`}
                 {confirmTarget.kind === "request" &&
                   "নিশ্চিত করলে অনলাইন বুকিংয়ের ক্যানসেল রিকোয়েস্ট পাঠানো হবে। বুকিং অপরিবর্তিত থাকবে।"}
               </p>
@@ -1444,6 +1695,10 @@ function AppointmentRow({
   r,
   readonly,
   lockApprove,
+  canDelete,
+  deleteTip,
+  showSkip,
+  onSkip,
   onPick,
   onDone,
   onEdit,
@@ -1452,6 +1707,11 @@ function AppointmentRow({
   r: ConfirmedRow;
   readonly: boolean;
   lockApprove: boolean;
+  canDelete: boolean;
+  deleteTip: string;
+  /** Today's live-current row — gets the not-present skip button + highlight. */
+  showSkip: boolean;
+  onSkip: () => void;
   onPick: (r: ConfirmedRow) => void;
   onDone: () => void;
   onEdit: () => void;
@@ -1464,7 +1724,11 @@ function AppointmentRow({
     new Date(ad.getFullYear(), ad.getMonth(), ad.getDate()).getTime() >
     new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   return (
-    <li className="w-full rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100 transition hover:shadow-md sm:flex sm:items-center sm:gap-3 sm:p-4">
+    <li
+      className={`w-full rounded-2xl bg-white p-3 shadow-sm transition hover:shadow-md sm:flex sm:items-center sm:gap-3 sm:p-4 ${
+        showSkip ? "ring-2 ring-amber-400" : "ring-1 ring-slate-100"
+      }`}
+    >
       <button
         onClick={() => onPick(r)}
         className="flex min-w-0 w-full flex-1 items-center gap-2.5 text-left sm:gap-3"
@@ -1485,10 +1749,22 @@ function AppointmentRow({
             >
               {TYPE_BN[r.bookingType]}
             </span>
+            {showSkip && (
+              <span
+                title="এই সিরিয়াল এখন লাইভ বোর্ডে চলছে"
+                className="inline-block shrink-0 animate-pulse rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-black text-white"
+              >
+                🔴 বোর্ডে
+              </span>
+            )}
             {r.createdByName?.trim() && (
               <span
-                title={`বুকিং নিয়েছেন: ${r.createdByName.trim()}`}
-                className="max-w-20 truncate text-[11px] font-bold text-slate-500"
+                title={`বুকিং নিয়েছেন: ${r.createdByName.trim()}${!canDelete && r.bookingType === "OFFLINE" ? " — শুধু তিনি ডিলিট করতে পারবেন" : ""}`}
+                className={
+                  !canDelete && r.bookingType === "OFFLINE"
+                    ? "max-w-32 truncate rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800 ring-1 ring-amber-200"
+                    : "max-w-20 truncate text-[11px] font-bold text-slate-500"
+                }
               >
                 👤 {r.createdByName.trim()}
               </span>
@@ -1504,6 +1780,15 @@ function AppointmentRow({
         </span>
       ) : (
         <span className="mt-2 flex shrink-0 items-center justify-end gap-1.5 sm:mt-0" onClick={(e) => e.stopPropagation()}>
+          {showSkip && (
+            <HoverAction
+              label="🙋‍♂️ উপস্থিত নেই — পরের সিরিয়াল বোর্ডে পাঠান"
+              onClick={onSkip}
+              className="bg-amber-500 text-white ring-amber-500 hover:bg-amber-600"
+            >
+              <span className="text-base leading-none">⏭️</span>
+            </HoverAction>
+          )}
           <HoverAction
             label={
               lockApprove
@@ -1527,9 +1812,9 @@ function AppointmentRow({
           </HoverAction>
           {r.bookingType === "OFFLINE" ? (
             <HoverAction
-              label={lockApprove ? "🔒 শুধু ডাক্তার ডিলিট করতে পারবেন" : "ডিলিট"}
+              label={deleteTip}
               onClick={onCancel}
-              disabled={lockApprove}
+              disabled={!canDelete}
               className="bg-red-50 text-red-700 ring-red-200 hover:bg-red-100"
             >
               <TrashIcon />

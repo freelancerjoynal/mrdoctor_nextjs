@@ -33,13 +33,13 @@ export default async function DashboardLayout({
   }
 
   // Header avatar: the doctor's profile picture (own profile for DOCTOR,
-  // staff's doctor for DOCTOR_STAFF, global avatar fallback included);
+  // own uploaded photo for DOCTOR_STAFF, global avatar fallback included);
   // other roles keep the initial badge.
   const headerPicture =
     data.session.role === "DOCTOR"
       ? (data.profile?.doctorProfile?.profilePicture ?? null)
       : data.session.role === "DOCTOR_STAFF"
-        ? (data.profile?.staffDoctor?.profilePicture ?? null)
+        ? (data.profile?.profilePicture ?? null)
         : undefined;
 
   return (

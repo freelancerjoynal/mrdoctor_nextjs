@@ -28,11 +28,13 @@ export function ProfilePanel({
   initialName,
   role,
   doctorProfile,
+  initialProfilePicture,
 }: {
   initialEmail: string;
   initialName: string;
   role?: string;
   doctorProfile?: DoctorProfile | null;
+  initialProfilePicture?: string | null;
 }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -130,6 +132,11 @@ export function ProfilePanel({
         <DoctorEditSection initial={doctorProfile ?? null} inputCls={inputCls} />
       )}
 
+      {/* Staff profile photo — upload like the doctor (non-doctor roles) */}
+      {role !== "DOCTOR" && (
+        <StaffPhotoSection initial={initialProfilePicture ?? null} />
+      )}
+
       {/* Name */}
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
         <p className="text-lg font-black text-slate-900">নাম পরিবর্তন</p>
@@ -209,6 +216,57 @@ export function ProfilePanel({
 
 function str(v: string | null | undefined): string {
   return v ?? "";
+}
+
+/** Staff profile photo — same Cloudinary upload as the doctor's picture. */
+function StaffPhotoSection({ initial }: { initial: string | null }) {
+  const router = useRouter();
+  const [picture, setPicture] = useState(initial ?? "");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ ok: "", err: "" });
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    setMsg({ ok: "", err: "" });
+    setSaving(true);
+    try {
+      await profileApi({ profilePicture: picture.trim() });
+      setPicture(picture.trim());
+      setMsg({ ok: "প্রোফাইল ছবি সফলভাবে আপডেট হয়েছে।", err: "" });
+      router.refresh();
+    } catch (err: unknown) {
+      setMsg({ ok: "", err: err instanceof Error ? err.message : "আপডেট ব্যর্থ হয়েছে।" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+      <p className="text-lg font-black text-slate-900">📷 প্রোফাইল ছবি</p>
+      <p className="mt-1 text-sm text-slate-500">
+        আপনার ছবি ড্যাশবোর্ডের হেডার ও পরিচিতি কার্ডে দেখা যাবে।
+      </p>
+      <form onSubmit={onSubmit} className="mt-4 space-y-3">
+        <CloudinaryImageInput
+          label="ছবি আপলোড করুন (আপলোড করলেই URL বসে যাবে)"
+          value={picture}
+          onChange={setPicture}
+          folder="profile-pictures"
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl bg-emerald-600 px-6 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {saving ? "সেভ হচ্ছে…" : "💾 ছবি সেভ করুন"}
+        </button>
+      </form>
+      {msg.err && <p className="mt-3 text-sm font-bold text-red-600">{msg.err}</p>}
+      {msg.ok && <p className="mt-3 text-sm font-bold text-emerald-700">{msg.ok}</p>}
+    </section>
+  );
 }
 
 function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | null; inputCls: string }) {

@@ -35,6 +35,7 @@ export default async function ProfilePage() {
         initialName={initialName}
         role={data.session.role}
         doctorProfile={profile?.doctorProfile ?? null}
+        initialProfilePicture={profile?.profilePicture ?? null}
       />
       {data.session.role === "DOCTOR" && <DoctorContentPanel />}
       {data.session.role === "DOCTOR_STAFF" && profile?.staffDoctor && (
