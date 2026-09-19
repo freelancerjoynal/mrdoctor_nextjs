@@ -1,5 +1,7 @@
 import { HomeHeader } from "./components/HomeHeader";
 import { Hero } from "./components/Hero";
+import { LocationAutoRedirect } from "@/components/location/LocationAutoRedirect";
+import { LocationSwitcher } from "@/components/location/LocationSwitcher";
 import { Specialities } from "./components/Specialities";
 import { AreaExplorer } from "./components/AreaExplorer";
 import { HowItWorks } from "./components/HowItWorks";
@@ -32,6 +34,8 @@ export default async function HomePage() {
         <CtaBanner />
       </main>
       <HomeFooter />
+      <LocationAutoRedirect />
+      <LocationSwitcher />
     </div>
   );
 }

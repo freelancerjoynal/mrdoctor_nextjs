@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSubdomain } from "@/lib/subdomain";
+import { LOCATION_SLUG_SET } from "@/lib/locationSlugs";
 
 const AUTH_PAGES = ["/login", "/apply", "/apply/doctor", "/apply/hospital", "/verify-otp", "/forgot-password", "/reset-password"];
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
@@ -71,18 +72,29 @@ async function handle(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // ---- Subdomain → normal-route rewrite ----
-  // URL stays `dr-rahman.domain.com/...`, internally serves `/s/dr-rahman/...`.
-  // Skip API, Next internals and the internal prefix itself (no loops).
+  // Location slugs win over profile prefixes (`pirganj.domain.com` is the
+  // Pirganj area portal, even if a username ever collides with it).
+  // - `<location-slug>.domain.com/...` → `/l/<slug>/...` (area portal)
+  // - `<username>.domain.com/...` → `/s/<username>/...` (doctor/hospital)
+  // URL stays on the subdomain in both cases.
+  // Skip API, Next internals and the internal prefixes themselves (no loops).
   // Public sites never need auth handling.
   if (
     !pathname.startsWith("/api/") &&
     !pathname.startsWith("/_next/") &&
-    !pathname.startsWith("/s/")
+    !pathname.startsWith("/s/") &&
+    !pathname.startsWith("/l/")
   ) {
     const host = req.headers.get("host") ?? "";
     const subdomain = getSubdomain(host);
     if (subdomain) {
       const url = req.nextUrl.clone();
+      if (LOCATION_SLUG_SET.has(subdomain)) {
+        url.pathname = `/l/${subdomain}${pathname === "/" ? "" : pathname}`;
+        const res = NextResponse.rewrite(url);
+        res.headers.set("x-location", subdomain);
+        return res;
+      }
       url.pathname = `/s/${subdomain}${pathname === "/" ? "" : pathname}`;
       const res = NextResponse.rewrite(url);
       res.headers.set("x-subdomain", subdomain);

@@ -33,6 +33,7 @@ export const RESERVED_SUBDOMAINS = new Set([
   "help",
   "status",
   "s", // internal rewrite prefix (/s/[subdomain]) — must not loop
+  "l", // internal rewrite prefix (/l/[location]) — must not loop
   "_next",
 ]);
 

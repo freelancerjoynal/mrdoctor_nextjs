@@ -1,0 +1,138 @@
+{
+  "divisions": [
+    {
+      "division": "Rangpur",
+      "districts": [
+        {
+          "district": "Rangpur",
+          "upazilas": [
+            "Mithapukur",
+            "Taraganj",
+            "Badarganj",
+            "Pirganj",
+            "Pirgacha",
+            "Gangachara",
+            "Kaunia",
+            "Rangpur Sadar"
+          ]
+        },
+        {
+          "district": "Panchagarh",
+          "upazilas": [
+            "Panchagarh Sadar",
+            "Tetulia",
+            "Atwari",
+            "Debiganj",
+            "Boda"
+          ]
+        },
+        {
+          "district": "Thakurgaon",
+          "upazilas": [
+            "Thakurgaon Sadar",
+            "Ranishankail",
+            "Baliadangi",
+            "Haripur",
+            "Pirganj"
+          ]
+        },
+        {
+          "district": "Nilphamari",
+          "upazilas": [
+            "Dimla",
+            "Jaldhaka",
+            "Saidpur",
+            "Kishoreganj",
+            "Nilphamari Sadar",
+            "Domar"
+          ]
+        },
+        {
+          "district": "Lalmonirhat",
+          "upazilas": [
+            "Patgram",
+            "Hatibandha",
+            "Lalmonirhat Sadar",
+            "Aditmari",
+            "Kaliganj"
+          ]
+        },
+        {
+          "district": "Gaibandha",
+          "upazilas": [
+            "Gobindaganj",
+            "Saghata",
+            "Palashbari",
+            "Gaibandha Sadar",
+            "Sadullapur",
+            "Sundarganj",
+            "Fulchhari"
+          ]
+        },
+        {
+          "district": "Kurigram",
+          "upazilas": [
+            "Ulipur",
+            "Phulbari",
+            "Bhurungamari",
+            "Nageshwari",
+            "Rajarhat",
+            "Rajibpur",
+            "Kurigram Sadar",
+            "Roumari",
+            "Chilmari"
+          ]
+        },
+        {
+          "district": "Dinajpur",
+          "upazilas": [
+            "Kaharole",
+            "Khansama",
+            "Birganj",
+            "Chirirbandar",
+            "Birampur",
+            "Ghoraghat",
+            "Dinajpur Sadar",
+            "Nawabganj",
+            "Bochaganj",
+            "Phulbari",
+            "Biral",
+            "Parbatipur",
+            "Hakimpur"
+          ]
+        }
+      ],
+      "total_districts": 8,
+      "total_upazilas": 58,
+      "source": "Rangpur Divisional Commissioner's Office and Bangladesh National Portal"
+    },
+    {
+      "division": "Dhaka",
+      "districts": []
+    },
+    {
+      "division": "Chattogram",
+      "districts": []
+    },
+    {
+      "division": "Rajshahi",
+      "districts": []
+    },
+    {
+      "division": "Khulna",
+      "districts": []
+    },
+    {
+      "division": "Barishal",
+      "districts": []
+    },
+    {
+      "division": "Sylhet",
+      "districts": []
+    },
+    {
+      "division": "Mymensingh",
+      "districts": []
+    }
+  ]
+}
