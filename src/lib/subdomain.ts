@@ -19,7 +19,7 @@ export const RESERVED_SUBDOMAINS = new Set([
   "admin",
   "dashboard",
   "login",
-  "register",
+  "apply",
   "verify-otp",
   "forgot-password",
   "reset-password",

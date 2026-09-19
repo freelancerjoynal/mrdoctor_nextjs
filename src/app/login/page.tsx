@@ -9,9 +9,9 @@ export default function LoginPage() {
       subtitle="লগইন করুন — সম্পূর্ণ করতে আপনার ইমেইলে একটি OTP পাঠাব।"
       footer={
         <>
-          নতুন এখানে?{" "}
-          <Link href="/register" className="font-bold text-indigo-600 hover:underline">
-            অ্যাকাউন্ট খুলুন
+          ডাক্তার / হাসপাতাল?{" "}
+          <Link href="/apply" className="font-bold text-indigo-600 hover:underline">
+            আবেদন করুন
           </Link>
           <span className="mx-2 text-slate-300">·</span>
           <Link href="/forgot-password" className="font-bold text-indigo-600 hover:underline">

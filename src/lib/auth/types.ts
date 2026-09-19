@@ -1,10 +1,16 @@
 export type Role =
   | "SUPER_ADMIN"
+  | "ADMIN_MANAGER"
   | "DOCTOR"
   | "DOCTOR_STAFF"
   | "BUSINESS_OWNER"
   | "HOSPITAL"
   | "HOSPITAL_STAFF";
+
+/** Full platform admins — SUPER_ADMIN and ADMIN_MANAGER share every privilege. */
+export function isAdminRole(role: Role | string | null | undefined): boolean {
+  return role === "SUPER_ADMIN" || role === "ADMIN_MANAGER";
+}
 
 export interface JwtPayload {
   userId: string;

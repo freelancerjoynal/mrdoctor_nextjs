@@ -1,5 +1,4 @@
 import type { Role } from "./types";
-
 export interface RoleMeta {
   label: string;
   tagline: string;
@@ -32,6 +31,25 @@ export const ROLE_META: Record<Role, RoleMeta> = {
       { label: "অনুমোদন দেখুন", hint: "বিচারাধীন ডাক্তার ও হাসপাতাল" },
       { label: "ভূমিকা ব্যবস্থাপনা", hint: "স্টাফ ও মালিক নির্ধারণ" },
       { label: "সিস্টেম স্বাস্থ্য", hint: "API, মেইল, হোয়াটসঅ্যাপ" },
+    ],
+  },
+  ADMIN_MANAGER: {
+    label: "অ্যাডমিন ম্যানেজার",
+    tagline: "প্ল্যাটফর্ম পরিচালনা — আবেদন, ডাক্তার, হাসপাতাল ও আয়।",
+    gradient: "from-indigo-600 via-blue-500 to-cyan-400",
+    accent: "bg-indigo-600",
+    accentText: "text-indigo-700",
+    softBg: "bg-indigo-50",
+    emoji: "🛡️",
+    stats: [
+      { label: "বিচারাধীন আবেদন", value: "—", delta: "যোগদান" },
+      { label: "ডাক্তার", value: "—", delta: "সক্রিয়" },
+      { label: "হাসপাতাল", value: "—", delta: "সক্রিয়" },
+    ],
+    actions: [
+      { label: "আবেদন দেখুন", hint: "যোগদানের অনুরোধ" },
+      { label: "অ্যাকাউন্ট তৈরি", hint: "ডাক্তার ও হাসপাতাল" },
+      { label: "আয় ও পেআউট", hint: "ওভারভিউ ও ব্যালেন্স" },
     ],
   },
   DOCTOR: {
@@ -131,10 +149,3 @@ export const ROLE_META: Record<Role, RoleMeta> = {
   },
 };
 
-export const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: "DOCTOR", label: "ডাক্তার" },
-  { value: "DOCTOR_STAFF", label: "ডাক্তারের সহকারী" },
-  { value: "BUSINESS_OWNER", label: "ব্যবসায়ী" },
-  { value: "HOSPITAL", label: "হাসপাতাল" },
-  { value: "HOSPITAL_STAFF", label: "হাসপাতাল স্টাফ" },
-];

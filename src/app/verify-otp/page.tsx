@@ -7,8 +7,8 @@ export default async function VerifyOtpPage({
 }: {
   searchParams: Promise<{ email?: string; purpose?: string }>;
 }) {
-  const { email = "", purpose = "signup" } = await searchParams;
-  const purposeBn = purpose === "login" ? "লগইন" : "রেজিস্ট্রেশন";
+  const { email = "" } = await searchParams;
+  const purposeBn = "লগইন";
   return (
     <AuthShell
       title="ইমেইল চেক করুন"

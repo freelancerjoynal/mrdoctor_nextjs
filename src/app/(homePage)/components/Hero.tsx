@@ -53,10 +53,10 @@ export function Hero({
               আপনার এলাকার ডাক্তার ↓
             </a>
             <Link
-              href="/register"
+              href="/apply"
               className="rounded-xl bg-white/10 px-5 py-2.5 text-sm font-bold text-white ring-1 ring-white/15 transition hover:bg-white/20"
             >
-              ফ্রি অ্যাকাউন্ট খুলুন
+              ডাক্তার / হাসপাতাল আবেদন
             </Link>
           </div>
 

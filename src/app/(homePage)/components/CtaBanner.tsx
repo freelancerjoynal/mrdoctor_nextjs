@@ -10,14 +10,14 @@ export function CtaBanner() {
           অসুস্থতায় অপেক্ষা কেন?
         </h2>
         <p className="relative mx-auto mt-2 max-w-lg text-sm text-white/85 sm:text-base">
-          আজই ফ্রি অ্যাকাউন্ট খুলুন — আপনার এলাকার ডাক্তারের সাথে সংযুক্ত হোন মুহূর্তেই।
+          ডাক্তার বা হাসপাতাল হিসেবে আবেদন করুন — অনুমোদনের পর আপনার পোর্টাল চালু হবে।
         </p>
         <div className="relative mt-5 flex flex-wrap justify-center gap-3">
           <Link
-            href="/register"
+            href="/apply"
             className="rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-slate-200"
           >
-            ফ্রি অ্যাকাউন্ট খুলুন →
+            আবেদন করুন →
           </Link>
           <Link
             href="/login"

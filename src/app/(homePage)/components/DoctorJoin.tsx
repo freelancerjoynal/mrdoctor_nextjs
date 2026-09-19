@@ -15,7 +15,7 @@ export function DoctorJoin() {
             আপনি কি ডাক্তার? আপনার চেম্বার নিন অনলাইনে
           </h2>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/60 sm:text-base">
-            রেজিস্টার করুন, যাচাই শেষে আপনার চেম্বার, ফি ও সময়সূচি যোগ করুন।
+            রেজিস্টার নয় — আবেদন করুন, যাচাই শেষে আপনার চেম্বার, ফি ও সময়সূচি যোগ করুন।
             রোগীরা হোয়াটসঅ্যাপেই সিরিয়াল নেবে — আপনার ফোনে বাড়তি ঝামেলা নেই।
           </p>
           <ul className="mt-5 space-y-2">
@@ -30,7 +30,7 @@ export function DoctorJoin() {
           </ul>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              href="/register"
+              href="/apply/doctor"
               className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition hover:opacity-90"
             >
               ডাক্তার হিসেবে যোগ দিন →

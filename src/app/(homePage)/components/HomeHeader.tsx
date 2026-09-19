@@ -21,10 +21,10 @@ export function HomeHeader() {
             লগইন
           </Link>
           <Link
-            href="/register"
+            href="/apply"
             className="rounded-xl bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 px-3 py-2 text-sm font-bold text-white shadow-lg transition hover:opacity-90 sm:px-4"
           >
-            শুরু করুন
+            আবেদন করুন
           </Link>
         </nav>
       </div>

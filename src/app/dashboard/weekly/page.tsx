@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
+import { isAdminRole } from "@/lib/auth/types";
 import { WeeklyPanel } from "./WeeklyPanel";
 
 /** Per-day collection of a Mon–Sun week — opened from the সাপ্তাহিক আয় box. */
 export default async function WeeklyPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (session.role !== "DOCTOR" && session.role !== "DOCTOR_STAFF" && session.role !== "SUPER_ADMIN") {
+  if (session.role !== "DOCTOR" && session.role !== "DOCTOR_STAFF" && !isAdminRole(session.role)) {
     redirect("/dashboard");
   }
 

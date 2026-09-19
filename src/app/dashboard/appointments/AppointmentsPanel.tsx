@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toBn, bnDateLabel, BN_WEEKDAYS } from "@/lib/bn";
 import { apiFetch } from "@/lib/auth/apiFetch";
+import { isAdminRole } from "@/lib/auth/types";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
 import { Skeleton, SkeletonCards, SkeletonRows } from "@/components/dashboard/Skeleton";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
@@ -352,7 +353,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   // Serve lock: only the doctor may mark service-done — no staffer and no
   // hospital operator can, regardless of flags. Delete stays owner-only
   // (only the adder may delete); everything else is shared.
-  const approveLocked = sessionProfile?.role !== "DOCTOR" && sessionProfile?.role !== "SUPER_ADMIN";
+  const approveLocked = !isAdminRole(sessionProfile?.role) && sessionProfile?.role !== "DOCTOR";
   // Owner-only delete: nobody may delete a booking they didn't add — not even
   // the doctor. Only the adder (createdBy) may delete it. Legacy rows without
   // createdBy stay deletable (no owner recorded).

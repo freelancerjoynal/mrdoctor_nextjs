@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
+import { isAdminRole } from "@/lib/auth/types";
 import { MonthlyPanel } from "./MonthlyPanel";
 
 /** Per-day collection of a calendar month — opened from the মাসিক আয় box. Doctor only. */
 export default async function MonthlyPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (session.role !== "DOCTOR" && session.role !== "SUPER_ADMIN") redirect("/dashboard");
+  if (session.role !== "DOCTOR" && !isAdminRole(session.role)) redirect("/dashboard");
 
   return (
     <div className="space-y-5">

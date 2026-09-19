@@ -7,13 +7,18 @@ import { ProfileCard } from "@/components/dashboard/ProfileCard";
 import { MyDoctorCard } from "@/components/dashboard/MyDoctorCard";
 import { DoctorHeroCard } from "@/components/dashboard/DoctorHeroCard";
 import { HospitalDeskDashboard } from "@/components/dashboard/HospitalDeskDashboard";
+import { HospitalOwnerBoard } from "@/components/hospital-owner/HospitalOwnerBoard";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { DashboardCollections } from "./DashboardCollections";
+import { isAdminRole } from "@/lib/auth/types";
 
 export default async function DashboardPage() {
   const data = await getProfile();
   if (!data) redirect("/login");
+
+  // Admins have their own sidebar section now — keep /dashboard for other roles.
+  if (isAdminRole(data.session.role)) redirect("/admin");
 
   const { session, profile } = data;
   const meta = ROLE_META[session.role];
@@ -29,11 +34,14 @@ export default async function DashboardPage() {
 
   // Hospital staff get a focused desk home (HospitalDeskDashboard) — the
   // generic greeting hero + profile card are hidden for them.
+  // Hospital owner gets the rebuilt online-ledger board (HospitalOwnerBoard).
   const isHospitalStaff = session.role === "HOSPITAL_STAFF";
+  const isHospitalOwner = session.role === "HOSPITAL";
 
   return (
     <div className="space-y-5 sm:space-y-6">
       {!isHospitalStaff &&
+        !isHospitalOwner &&
         (heroDoctor ? (
           <DoctorHeroCard doctor={heroDoctor} greeting={name} />
         ) : (
@@ -53,7 +61,7 @@ export default async function DashboardPage() {
           </section>
         ))}
 
-      {!isHospitalStaff && <ProfileCard session={session} profile={profile} />}
+      {!isHospitalStaff && !isHospitalOwner && <ProfileCard session={session} profile={profile} />}
 
       {/* Staff sees which doctor they work under */}
       {session.role === "DOCTOR_STAFF" && profile?.staffDoctor && (
@@ -65,8 +73,11 @@ export default async function DashboardPage() {
         <DashboardCollections isDoctor={session.role === "DOCTOR"} />
       )}
 
+      {/* Hospital owner: rebuilt online-ledger board (components/hospital-owner) */}
+      {isHospitalOwner && <HospitalOwnerBoard />}
+
       {/* Hospital desk home: stable hero + cash + booking (no doctor filter here) */}
-      {(session.role === "HOSPITAL" || session.role === "HOSPITAL_STAFF") && <HospitalDeskDashboard />}
+      {isHospitalStaff && <HospitalDeskDashboard />}
 
       {/* Manage — doctor's admin panel (staff gets appointments only) */}
       {(session.role === "DOCTOR" || session.role === "DOCTOR_STAFF") && (
@@ -131,8 +142,35 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Manage — hospital desk: appointments + booking (+ staff mgmt for owner). No chambers, no serve. */}
-      {(session.role === "HOSPITAL" || session.role === "HOSPITAL_STAFF") && (
+      {/* Manage — hospital owner: no appointment panel. Only profile + booking + staff. */}
+      {isHospitalOwner && (
+        <section>
+          <h2 className="mb-3 text-base font-black text-slate-900 sm:text-lg">পরিচালনা</h2>
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
+            <ManageLink
+              href="/dashboard/profile"
+              emoji="👤"
+              label="প্রোফাইল ব্যবস্থাপনা"
+              hint="নাম ও পাসওয়ার্ড পরিবর্তন করুন"
+            />
+            <ManageLink
+              href="/dashboard/local-booking"
+              emoji="➕"
+              label="লোকাল বুকিং"
+              hint="ডাক্তার বেছে সরাসরি রোগী + SMS রসিদ"
+            />
+            <ManageLink
+              href="/dashboard/staff"
+              emoji="🧑‍⚕️"
+              label="স্টাফ ব্যবস্থাপনা"
+              hint="ইমেইলে হাসপাতাল-স্টাফ যোগ করুন"
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Manage — hospital staff desk: appointments + booking. No chambers, no serve. */}
+      {isHospitalStaff && (
         <section>
           <h2 className="mb-3 text-base font-black text-slate-900 sm:text-lg">পরিচালনা</h2>
           <div className="grid grid-cols-1 gap-3 sm:gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3">
@@ -154,14 +192,6 @@ export default async function DashboardPage() {
               label="লোকাল বুকিং"
               hint="ডাক্তার বেছে সরাসরি রোগী + SMS রসিদ"
             />
-            {session.role === "HOSPITAL" && (
-              <ManageLink
-                href="/dashboard/staff"
-                emoji="🧑‍⚕️"
-                label="স্টাফ ব্যবস্থাপনা"
-                hint="ইমেইলে হাসপাতাল-স্টাফ যোগ করুন"
-              />
-            )}
           </div>
         </section>
       )}

@@ -1,11 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSubdomain } from "@/lib/subdomain";
 
-const AUTH_PAGES = ["/login", "/register", "/verify-otp", "/forgot-password", "/reset-password"];
+const AUTH_PAGES = ["/login", "/apply", "/apply/doctor", "/apply/hospital", "/verify-otp", "/forgot-password", "/reset-password"];
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 // Refresh a bit before real expiry so slow requests don't die mid-flight.
 const EXP_SKEW_MS = 30_000;
 
+/** Edge-safe JWT role read (decode only — verification happens on the backend). */
+function getRoleClaim(token: string): string | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    let b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const json = JSON.parse(atob(b64)) as { role?: unknown };
+    return typeof json.role === "string" ? json.role : null;
+  } catch {
+    return null;
+  }
+}
 /** Edge-safe JWT expiry read (decode only — verification happens on the backend). */
 function getExpMs(token: string): number | null {
   try {
@@ -131,6 +144,23 @@ async function handle(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("next", pathname);
+      return finish(NextResponse.redirect(url));
+    }
+    return finish(NextResponse.next());
+  }
+
+  // /admin is SUPER_ADMIN + ADMIN_MANAGER only — everyone else goes to /dashboard.
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    if (!loggedIn) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", pathname);
+      return finish(NextResponse.redirect(url));
+    }
+    const role = access ? getRoleClaim(access) : null;
+    if (role !== "SUPER_ADMIN" && role !== "ADMIN_MANAGER") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
       return finish(NextResponse.redirect(url));
     }
     return finish(NextResponse.next());

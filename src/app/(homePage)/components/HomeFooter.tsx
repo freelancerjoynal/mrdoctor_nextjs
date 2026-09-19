@@ -7,7 +7,7 @@ const COLS = [
       { label: "এলাকা দেখুন", href: "/#areas" },
       { label: "ড্যাশবোর্ড", href: "/dashboard" },
       { label: "লগইন", href: "/login" },
-      { label: "রেজিস্টার", href: "/register" },
+      { label: "আবেদন করুন", href: "/apply" },
     ],
   },
   {
@@ -15,7 +15,8 @@ const COLS = [
     links: [
       { label: "পাসওয়ার্ড ভুলে গেছেন?", href: "/forgot-password" },
       { label: "OTP যাচাই", href: "/verify-otp" },
-      { label: "ডাক্তার হিসেবে যোগ দিন", href: "/register" },
+      { label: "ডাক্তার হিসেবে আবেদন", href: "/apply/doctor" },
+      { label: "হাসপাতাল হিসেবে আবেদন", href: "/apply/hospital" },
     ],
   },
 ];

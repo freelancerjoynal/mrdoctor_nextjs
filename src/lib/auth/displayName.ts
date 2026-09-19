@@ -18,6 +18,7 @@ export function getDisplayName(
   if (profile?.email) return profile.email.split("@")[0];
   const ROLE_FALLBACK: Record<Session["role"], string> = {
     SUPER_ADMIN: "সুপার অ্যাডমিন",
+    ADMIN_MANAGER: "অ্যাডমিন ম্যানেজার",
     DOCTOR: "ডাক্তার",
     DOCTOR_STAFF: "ডাক্তারের সহকারী",
     BUSINESS_OWNER: "ব্যবসায়ী",

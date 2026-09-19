@@ -6,6 +6,7 @@ import { ROLE_META } from "@/lib/auth/constants";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { DashboardFooter } from "@/components/dashboard/DashboardFooter";
 import { HeaderAvatar } from "@/components/dashboard/HeaderAvatar";
+import { HospitalLifetimeBalanceButton } from "@/components/dashboard/HospitalLifetimeBalanceButton";
 
 export default async function DashboardLayout({
   children,
@@ -58,6 +59,8 @@ export default async function DashboardLayout({
             />
           </Link>
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            {/* Owner only: lifetime served balance (lazy — fetches on click, never on load). */}
+            {data.session.role === "HOSPITAL" && <HospitalLifetimeBalanceButton />}
             <span className="flex min-w-0 items-center gap-2.5">
               {headerPicture !== undefined ? (
                 <HeaderAvatar profilePicture={headerPicture} name={name} />
