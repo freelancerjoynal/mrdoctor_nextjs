@@ -290,8 +290,9 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
     templateName: str(initial?.templateName) || "template_a",
     profilePicture: str(initial?.profilePicture),
     gender: (initial?.gender ?? "") as string,
-    religion: str(initial?.religion),
+    religion: str(initial?.religion) || "Muslim",
     startedYear: initial?.startedYear != null ? String(initial.startedYear) : "",
+    bmdcNumber: str(initial?.bmdcNumber),
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ ok: "", err: "" });
@@ -333,6 +334,7 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
         gender: form.gender.trim(),
         religion: form.religion.trim(),
         startedYear: form.startedYear.trim(),
+        bmdcNumber: form.bmdcNumber.trim(),
       };
       await profileApi({ doctor });
       const newName = form.name.trim();
@@ -374,8 +376,12 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
           {field("Speciality (English)", "speciality_en", "Medicine Specialist")}
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {field("BMDC নম্বর", "bmdcNumber", "A-12345")}
           {field("ট্যাগলাইন (বাংলা)", "tagline", "সংক্ষিপ্ত পরিচিতি")}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {field("Tagline (English)", "tagline_en", "Short intro")}
+          <span />
         </div>
         <label className="block">
           <span className="mb-1 block text-sm font-bold text-slate-600">বায়ো (বাংলা)</span>
@@ -419,7 +425,13 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
               <option value="FEMALE">নারী (FEMALE)</option>
             </select>
           </label>
-          {field("ধর্ম", "religion", "ইসলাম / হিন্দু / ...")}
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold text-slate-600">ধর্ম</span>
+            <select value={form.religion || "Muslim"} onChange={set("religion")} className={inputCls}>
+              <option value="Muslim">Muslim</option>
+              <option value="Hindu">Hindu</option>
+            </select>
+          </label>
           {field("শুরুর বছর", "startedYear", "2010", "number")}
         </div>
         <button

@@ -24,6 +24,7 @@ export interface DoctorProfile {
   gender?: "MALE" | "FEMALE" | null;
   religion?: string | null;
   startedYear?: number | null;
+  bmdcNumber?: string | null;
   status?: string | null;
 }
 
