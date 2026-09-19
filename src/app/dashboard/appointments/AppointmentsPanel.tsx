@@ -155,7 +155,8 @@ function localIso(input: string | Date | null | undefined): string {
 
 const MAIN_TABS: { key: MainTab; label: string }[] = [
   { key: "today", label: "আজকের অ্যাপয়েন্টমেন্ট" },
-  { key: "tomorrow", label: "আগামীকালের অ্যাপয়েন্টমেন্ট" },
+  // TODO: re-enable tomorrow list later — button temporarily hidden.
+  // { key: "tomorrow", label: "আগামীকালের অ্যাপয়েন্টমেন্ট" },
   { key: "last30", label: "গত ৩০ দিনের অ্যাপয়েন্টমেন্ট" },
 ];
 
@@ -362,7 +363,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     !row.createdBy || (currentUserId !== "" && row.createdBy === currentUserId);
   // Live board URL: `<username>.domain.com/live` (middleware rewrites to `/s/<username>/live`).
   // SSR-safe: server renders `/s/<username>/live`, client upgrades to subdomain after mount
-  // (same pattern as DashboardFooter — window.location.host doesn't exist during SSR).
+  // (same SSR-safe upgrade pattern as the dashboard sidebar portal link).
   const liveUsername = doctor?.username?.trim().toLowerCase() ?? "";
   const serverSafeLiveUrl = liveUsername ? `/s/${encodeURIComponent(liveUsername)}/live` : null;
   const [liveBoardUrl, setLiveBoardUrl] = useState<string | null>(serverSafeLiveUrl);
@@ -396,6 +397,8 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   const [counts, setCounts] = useState<Record<MainTab, number>>({ today: 0, tomorrow: 0, last30: 0 });
   const [mainTab, setMainTab] = useState<MainTab>("today");
   const [subTab, setSubTab] = useState<SubTab>("ALL");
+  // Client-side search over the loaded list (name + phone number).
+  const [query, setQuery] = useState("");
   // Hospital-staff doctor filter: "" = all doctors, else one doctorId.
   // Options come from local-options (same source as the booking form) so the
   // list always matches "doctors of this hospital + availableToday flag".
@@ -446,6 +449,28 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         : rows,
     [rows, mainTab, live, missedSerials],
   );
+
+  /** Bengali digits → latin so phone search works in either script. */
+  function normalizeDigits(s: string): string {
+    return s.replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
+  }
+
+  // Search filter (name substring, case-insensitive + phone digit
+  // substring). Applies to the loaded list only — display-only, the
+  // serve-order logic above keeps using the full visibleRows.
+  const searchRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return visibleRows;
+    const qDigits = normalizeDigits(q).replace(/\D/g, "");
+    return visibleRows.filter((r) => {
+      if ((r.patientName ?? "").toLowerCase().includes(q)) return true;
+      if (qDigits) {
+        const phoneDigits = normalizeDigits(r.contactPhone ?? "").replace(/\D/g, "");
+        if (phoneDigits.includes(qDigits)) return true;
+      }
+      return false;
+    });
+  }, [visibleRows, query]);
 
   const openEdit = (row: ConfirmedRow) => {
     setActionMsg("");
@@ -627,10 +652,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   }, [dispatch]);
 
   // Last-30-days list grouped by day (only days that have rows appear).
+  // Grouped from the search-filtered rows so search works there too.
   const dayGroups = useMemo(() => {
     if (mainTab !== "last30") return null;
     const map = new Map<string, ConfirmedRow[]>();
-    for (const r of visibleRows) {
+    for (const r of searchRows) {
       const key = localIso(r.appointmentDate);
       if (!key) continue;
       const list = map.get(key);
@@ -638,7 +664,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
       else map.set(key, [r]);
     }
     return [...map.entries()].map(([date, list]) => ({ date, list }));
-  }, [mainTab, visibleRows]);
+  }, [mainTab, searchRows]);
 
   const switchMain = (t: MainTab) => {
     setMainTab(t);
@@ -1419,12 +1445,43 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         ))}
       </div>
 
+      {/* ---------- Search by patient name / phone number ---------- */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="relative block flex-1">
+          <span className="sr-only">নাম বা মোবাইল নম্বর দিয়ে খুঁজুন</span>
+          <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+            🔍
+          </span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="নাম বা মোবাইল নম্বর দিয়ে খুঁজুন…"
+            inputMode="search"
+            className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-bold text-slate-800 placeholder:font-semibold placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
+          />
+        </label>
+        {query.trim() && (
+          <div className="flex shrink-0 items-center gap-2">
+            <p className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
+              {toBn(searchRows.length)} / {toBn(visibleRows.length)} জন
+            </p>
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600 ring-1 ring-slate-200 hover:bg-slate-200"
+            >
+              ✕ মুছুন
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* ---------- Rows with upfront actions (missed serials hidden — see missed list) ---------- */}
       {loading ? (
         <SkeletonRows count={6} />
-      ) : visibleRows.length === 0 ? (
+      ) : searchRows.length === 0 ? (
         <p className="rounded-2xl bg-white p-8 text-center text-slate-500 ring-1 ring-slate-100">
-          এই তালিকায় কিছু নেই।
+          {query.trim() ? "এই নাম বা নম্বরে কোনো রোগী পাওয়া যায়নি।" : "এই তালিকায় কিছু নেই।"}
         </p>
       ) : dayGroups ? (
         <div className="space-y-5">
@@ -1469,7 +1526,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         </div>
       ) : (
         <ul className="space-y-2">
-          {visibleRows.map((r) => (
+          {searchRows.map((r) => (
             <AppointmentRow
               key={r.id}
               r={r}
