@@ -42,8 +42,10 @@ export function LocationPickerFields() {
       if (row) goToLocation(row.slug, false);
       return;
     }
+    // District alone → its Sadar thana portal (strict thana-by-thana;
+    // there is no district-wide view).
     const slug = districtSlug(districtEn);
-    if (slug) goToLocation(slug, true);
+    if (slug) goToLocation(slug, false);
   };
 
   const autoDetect = () => {
@@ -84,7 +86,7 @@ export function LocationPickerFields() {
 
       {suggestion ? (
         <button
-          onClick={() => goToLocation(suggestion.slug, suggestion.districtWide)}
+          onClick={() => goToLocation(suggestion.slug, false)}
           className="mt-2 w-full rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-900 hover:bg-emerald-100"
         >
           ✅ {suggestion.slug} পোর্টালে যান →
@@ -128,7 +130,7 @@ export function LocationPickerFields() {
         disabled={!districtEn}
         className="mt-2 w-full rounded-xl bg-white/10 px-4 py-2.5 text-sm font-black text-white ring-1 ring-white/15 hover:bg-white/20 disabled:opacity-50"
       >
-        {upazilaEn ? "উপজেলা পোর্টালে যান →" : "পুরো জেলার পোর্টালে যান →"}
+        {upazilaEn ? "থানা পোর্টালে যান →" : "সদর থানার পোর্টালে যান →"}
       </button>
     </div>
   );

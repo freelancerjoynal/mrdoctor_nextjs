@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { matchPlace } from "@/lib/locationSlugs";
 import { buildPortalUrl } from "@/lib/portal";
 
@@ -40,6 +41,30 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
     if (hit) return hit;
   }
   return null;
+}
+
+/** True only after client hydration — first client render matches SSR. */
+export function useMounted(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+/**
+ * Subdomain href safe for SSR: server + first client render output the
+ * apex `/l/<slug>` portal path (identical HTML, no hydration mismatch),
+ * then post-hydration it swaps to the real `<slug>.domain.com` absolute
+ * URL. (buildPortalUrl without a host reads window, which doesn't exist
+ * on the server — rendering its result directly is a hydration error.)
+ */
+export function usePortalHref(slug: string | null, districtWide = false): string | undefined {
+  const mounted = useMounted();
+  if (!slug) return undefined;
+  const suffix = districtWide ? "?scope=district" : "";
+  if (!mounted) return `/l/${encodeURIComponent(slug)}${suffix}`;
+  return buildPortalUrl(slug) + suffix;
 }
 
 /** Save choice + redirect to the area subdomain portal. */

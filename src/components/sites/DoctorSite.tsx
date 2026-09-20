@@ -8,6 +8,8 @@ import type { PublicBlog, PublicDoctor, PublicReview } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
 import { compressDayRanges, dayEnToBn } from "@/lib/days";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
+import { buildApexUrl } from "@/lib/portal";
+import { PortalHeader } from "@/components/sites/PortalHeader";
 import { doctorDemo } from "./doctorDemo";
 
 const NAV_LINKS = [
@@ -35,11 +37,14 @@ export function DoctorSite({
   serialHref,
   waNumber,
   waHref,
+  host,
 }: {
   doctor: PublicDoctor | null;
   serialHref: string;
   waNumber: string;
   waHref: string;
+  /** Request host — logo links to the apex main site (SSR-safe). */
+  host?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -54,7 +59,7 @@ export function DoctorSite({
       doctor?.startedYear != null
         ? Math.max(0, new Date().getFullYear() - doctor.startedYear)
         : doctorDemo.experienceYears,
-    [doctor?.startedYear],
+    [doctor],
   );
 
   const dbChambers = doctor && doctor.chambers.length > 0 ? doctor.chambers : null;
@@ -242,16 +247,18 @@ export function DoctorSite({
         </div>
       </div>
 
-      {/* ---------- Navbar ---------- */}
-      <header className="sticky top-0 z-50 border-b border-emerald-900/10 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
-          <a href="#home" className="flex items-center gap-3">
+      {/* ---------- Navbar (unified portal header: logo left, category pill first) ---------- */}
+      <PortalHeader
+        logoHref={host ? buildApexUrl("/", host) : "#home"}
+        logoAriaLabel="মিস্টার ডাক্তার — মূল সাইট"
+        identity={
+          <span className="flex min-w-0 items-center gap-2 border-l border-slate-200 pl-2.5">
             {portrait !== avatarFallback ? (
               /* eslint-disable-next-line @next/next/no-img-element -- site logo is the doctor's profile picture */
               <img
                 src={portrait}
                 alt={name}
-                className="h-11 w-11 rounded-xl object-cover ring-1 ring-emerald-900/15"
+                className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-emerald-900/15"
                 onError={(e) => {
                   if (!e.currentTarget.src.endsWith(avatarFallback)) {
                     e.currentTarget.src = avatarFallback;
@@ -261,74 +268,78 @@ export function DoctorSite({
             ) : (
               <span
                 aria-hidden="true"
-                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-xl font-black text-white ring-1 ring-emerald-900/15"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-lg font-black text-white ring-1 ring-emerald-900/15"
               >
                 {brandInitial}
               </span>
             )}
-            <span className="leading-tight">
-              <span className="block font-bold text-emerald-950">{name}</span>
-              <span className="block text-xs text-slate-500">{degree}</span>
+            <span className="hidden min-w-0 leading-tight min-[480px]:block">
+              <span className="block truncate text-sm font-bold text-emerald-950">{name}</span>
+              <span className="block truncate text-[11px] text-slate-500">{degree}</span>
             </span>
-          </a>
-          <nav className="hidden items-center gap-5 text-[15px] font-medium lg:flex">
-            {nav.map((n) => (
-              <a key={n.href} href={n.href} className="text-slate-600 hover:text-emerald-700">
-                {n.label}
-              </a>
-            ))}
-          </nav>
-          <div className="flex items-center gap-2">
+          </span>
+        }
+        pill={
+          <span className="hidden shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 ring-1 ring-emerald-200 min-[420px]:inline-flex">
+            🩺 {speciality}
+          </span>
+        }
+        nav={nav}
+        navClassName="hidden lg:flex"
+        actions={
+          <>
             <a
               href={serialHref}
               target="_blank"
               rel="noreferrer"
-              className="hidden rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800 sm:inline-block"
+              className="hidden shrink-0 rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800 sm:inline-block"
             >
               ✆ সিরিয়াল নিন
             </a>
             <button
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="মেনু"
-              className="rounded-lg border border-emerald-200 px-3 py-2 text-emerald-900 lg:hidden"
+              className="shrink-0 rounded-lg border border-emerald-200 px-3 py-2 text-emerald-900 lg:hidden"
             >
               {menuOpen ? "✕" : "☰"}
             </button>
-          </div>
-        </div>
-        <AnimatePresence initial={false}>
-          {menuOpen && (
-            <motion.nav
-              className="overflow-hidden border-t border-emerald-900/10 bg-white px-5 lg:hidden"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <div className="py-3">
-                {nav.map((n) => (
+          </>
+        }
+        mobilePanel={
+          <AnimatePresence initial={false}>
+            {menuOpen && (
+              <motion.nav
+                className="overflow-hidden border-t border-emerald-900/10 bg-white px-5 lg:hidden"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                <div className="py-3">
+                  {nav.map((n) => (
+                    <a
+                      key={n.href}
+                      href={n.href}
+                      onClick={() => setMenuOpen(false)}
+                      className="block border-b border-slate-50 py-2.5 font-medium text-slate-700 last:border-0 hover:text-emerald-700"
+                    >
+                      {n.label}
+                    </a>
+                  ))}
                   <a
-                    key={n.href}
-                    href={n.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="block border-b border-slate-50 py-2.5 font-medium text-slate-700 last:border-0 hover:text-emerald-700"
+                    href={serialHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 block rounded-full bg-emerald-700 px-5 py-2.5 text-center text-sm font-semibold text-white"
                   >
-                    {n.label}
+                    ✆ সিরিয়াল নিন
                   </a>
-                ))}
-                <a
-                  href={serialHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 block rounded-full bg-emerald-700 px-5 py-2.5 text-center text-sm font-semibold text-white"
-                >
-                  ✆ সিরিয়াল নিন
-                </a>
-              </div>
-            </motion.nav>
-          )}
-        </AnimatePresence>
-      </header>
+                </div>
+              </motion.nav>
+            )}
+          </AnimatePresence>
+        }
+      />
 
       {/* ---------- Hero ---------- */}
       <section

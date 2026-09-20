@@ -26,7 +26,8 @@ interface DoctorRow {
   speciality: string;
   phone: string;
   status: string;
-  chambers: ChamberLoc[];
+  // Optional: older backends omit chambers — cards must never crash on it.
+  chambers?: ChamberLoc[];
 }
 
 interface HospitalRow {
@@ -39,7 +40,7 @@ interface HospitalRow {
   addressLine: string | null;
   phone: string | null;
   status: string;
-  _count: { chambers: number };
+  _count?: { chambers: number };
 }
 
 type DirType = "HOSPITAL" | "DOCTOR";
@@ -287,7 +288,7 @@ function HospitalCard({ h }: { h: HospitalRow }) {
         </p>
         <p className="mt-1 text-xs font-bold text-slate-500">
           📍 {[h.thana, h.district, h.division].filter(Boolean).join(", ")}
-          {h.phone ? ` · ${h.phone}` : ""} · 🚪 {h._count.chambers} চেম্বার
+          {h.phone ? ` · ${h.phone}` : ""} · 🚪 {h._count?.chambers ?? 0} চেম্বার
         </p>
         <p className="mt-1 text-xs font-bold text-violet-600">বুকিং ও আয় দেখুন →</p>
       </Link>
@@ -296,7 +297,13 @@ function HospitalCard({ h }: { h: HospitalRow }) {
 }
 
 function DoctorCard({ d }: { d: DoctorRow }) {
-  const locs = [...new Set(d.chambers.map((c) => [c.thana, c.district].filter(Boolean).join(", ")).filter(Boolean))];
+  const locs = [
+    ...new Set(
+      (d.chambers ?? [])
+        .map((c) => [c.thana, c.district].filter(Boolean).join(", "))
+        .filter(Boolean),
+    ),
+  ];
   return (
     <li>
       <Link

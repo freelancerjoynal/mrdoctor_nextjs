@@ -26,9 +26,8 @@ export function HomeFooter() {
     <footer className="border-t border-white/10 bg-slate-950 py-10">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 md:grid-cols-4">
         <div className="md:col-span-2">
-          <p className="text-xl font-black text-white">
-            মিস্টার ডাক্তার<span className="text-cyan-300">।</span>
-          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="মিস্টার ডাক্তার" className="h-10 w-auto object-contain" />
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/55">
             রোগীকে ডাক্তারের কাছে পৌঁছে দিই মুহূর্তেই। দেরি নয়, অপেক্ষা নয় —
             সময়মতো ভিজিট ও সেবা, সারা বাংলাদেশে।

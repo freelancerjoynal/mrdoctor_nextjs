@@ -1,4 +1,5 @@
 import rawLocations from "./locations.json";
+import { DIVISIONS } from "./areas";
 
 /**
  * Location → subdomain slug system.
@@ -37,8 +38,7 @@ export function locationSlug(name: string): string {
 }
 
 /** English district → Bangla district (Rangpur division, cf. areas.ts). */
-const DISTRICT_BN: Record<string, string> = {
-  Rangpur: "রংপুর",
+const DISTRICT_BN: Record<string, string> = {  Rangpur: "রংপুর",
   Panchagarh: "পঞ্চগড়",
   Thakurgaon: "ঠাকুরগাঁও",
   Nilphamari: "নীলফামারী",
@@ -144,6 +144,234 @@ function buildTable(): LocationMatch[] {
 /** Every upazila entry (58 for Rangpur; grows as locations.json fills up). */
 export const LOCATION_TABLE: LocationMatch[] = buildTable();
 
+/* ------------------------------------------------------------------ */
+/* Full-country thana coverage (every location = a thana portal).      */
+/*                                                                     */
+/* `locations.json` only carries precise English names for Rangpur, so */
+/* every other division/district/thana from `areas.ts` (Bangla, the    */
+/* same strings chambers store) is added here. District slugs use      */
+/* official English spellings; thana slugs use them when known, else a */
+/* deterministic Bangla→Latin transliteration. Slug generation is the  */
+/* single source of truth — portal links and middleware resolution     */
+/* both go through it, so they can never drift apart.                  */
+/* ------------------------------------------------------------------ */
+
+/** Bangla division → official English division. */
+const DIVISION_EN: Record<string, string> = {
+  ঢাকা: "Dhaka",
+  চট্টগ্রাম: "Chattogram",
+  রাজশাহী: "Rajshahi",
+  খুলনা: "Khulna",
+  বরিশাল: "Barishal",
+  সিলেট: "Sylhet",
+  রংপুর: "Rangpur",
+  ময়মনসিংহ: "Mymensingh",
+};
+
+/** Bangla district → official English district (all 64). */
+const DISTRICT_EN: Record<string, string> = {
+  ঢাকা: "Dhaka",
+  গাজীপুর: "Gazipur",
+  নারায়ণগঞ্জ: "Narayanganj",
+  মুন্সিগঞ্জ: "Munshiganj",
+  মানিকগঞ্জ: "Manikganj",
+  নরসিংদী: "Narsingdi",
+  টাঙ্গাইল: "Tangail",
+  কিশোরগঞ্জ: "Kishoreganj",
+  ফরিদপুর: "Faridpur",
+  গোপালগঞ্জ: "Gopalganj",
+  মাদারীপুর: "Madaripur",
+  রাজবাড়ী: "Rajbari",
+  শরীয়তপুর: "Shariatpur",
+  চট্টগ্রাম: "Chattogram",
+  কক্সবাজার: "Coxsbazar",
+  কুমিল্লা: "Cumilla",
+  ব্রাহ্মণবাড়িয়া: "Brahmanbaria",
+  চাঁদপুর: "Chandpur",
+  লক্ষ্মীপুর: "Lakshmipur",
+  নোয়াখালী: "Noakhali",
+  ফেনী: "Feni",
+  খাগড়াছড়ি: "Khagrachhari",
+  রাঙ্গামাটি: "Rangamati",
+  বান্দরবান: "Bandarban",
+  বগুড়া: "Bogura",
+  জয়পুরহাট: "Joypurhat",
+  নওগাঁ: "Naogaon",
+  নাটোর: "Natore",
+  চাঁপাইনবাবগঞ্জ: "Chapainawabganj",
+  পাবনা: "Pabna",
+  রাজশাহী: "Rajshahi",
+  সিরাজগঞ্জ: "Sirajganj",
+  বাগেরহাট: "Bagerhat",
+  চুয়াডাঙ্গা: "Chuadanga",
+  যশোর: "Jashore",
+  ঝিনাইদহ: "Jhenaidah",
+  খুলনা: "Khulna",
+  কুষ্টিয়া: "Kushtia",
+  মাগুরা: "Magura",
+  মেহেরপুর: "Meherpur",
+  নড়াইল: "Narail",
+  সাতক্ষীরা: "Satkhira",
+  বরগুনা: "Barguna",
+  বরিশাল: "Barishal",
+  ভোলা: "Bhola",
+  ঝালকাঠি: "Jhalokati",
+  পটুয়াখালী: "Patuakhali",
+  পিরোজপুর: "Pirojpur",
+  হবিগঞ্জ: "Habiganj",
+  মৌলভীবাজার: "Moulvibazar",
+  সুনামগঞ্জ: "Sunamganj",
+  সিলেট: "Sylhet",
+  দিনাজপুর: "Dinajpur",
+  গাইবান্ধা: "Gaibandha",
+  কুড়িগ্রাম: "Kurigram",
+  লালমনিরহাট: "Lalmonirhat",
+  নীলফামারী: "Nilphamari",
+  পঞ্চগড়: "Panchagarh",
+  রংপুর: "Rangpur",
+  ঠাকুরগাঁও: "Thakurgaon",
+  জামালপুর: "Jamalpur",
+  ময়মনসিংহ: "Mymensingh",
+  নেত্রকোণা: "Netrokona",
+  শেরপুর: "Sherpur",
+};
+
+/** Base Latin for each Bangla letter / vowel sign (no inherent vowel). */
+const BN_LATIN: Record<string, string> = {
+  অ: "a",
+  আ: "a",
+  ই: "i",
+  ঈ: "i",
+  উ: "u",
+  ঊ: "u",
+  ঋ: "ri",
+  এ: "e",
+  ঐ: "oi",
+  ও: "o",
+  ঔ: "ou",
+  ক: "k",
+  খ: "kh",
+  গ: "g",
+  ঘ: "gh",
+  ঙ: "ng",
+  চ: "c",
+  ছ: "ch",
+  জ: "j",
+  ঝ: "jh",
+  ঞ: "n",
+  ট: "t",
+  ঠ: "th",
+  ড: "d",
+  ঢ: "dh",
+  ণ: "n",
+  ত: "t",
+  থ: "th",
+  দ: "d",
+  ধ: "dh",
+  ন: "n",
+  প: "p",
+  ফ: "ph",
+  ব: "b",
+  ভ: "bh",
+  ম: "m",
+  য: "y",
+  র: "r",
+  ল: "l",
+  শ: "sh",
+  ষ: "sh",
+  স: "s",
+  হ: "h",
+  ড়: "r",
+  ঢ়: "rh",
+  য়: "y",
+  "ৎ": "t",
+  "ং": "ng",
+  "ঃ": "h",
+  "ঁ": "n",
+  "া": "a",
+  "ি": "i",
+  "ী": "i",
+  "ু": "u",
+  "ূ": "u",
+  "ৃ": "ri",
+  "ে": "e",
+  "ৈ": "oi",
+  "ো": "o",
+  "ৌ": "ou",
+  "্": "",
+  "়": "",
+};
+
+const BN_CONSONANT = new Set(
+  "কখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহড়ঢ়য়ৎ".split(""),
+);
+/** Followers that keep the inherent "a" on the preceding consonant. */
+const BN_INHERENT_A_FOLLOWER = new Set([...BN_CONSONANT, "ং", "ঃ", "ঁ", "ৎ"]);
+
+/** Deterministic Bangla → Latin (handles the inherent "a" vowel). */
+export function transliterateBn(word: string): string {
+  const chars = word.split("");
+  let out = "";
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]!;
+    const latin = BN_LATIN[ch];
+    if (latin === undefined) continue;
+    if (latin === "") continue;
+    out += latin;
+    // Inherent "a": consonant followed by another consonant mid-word.
+    if (BN_CONSONANT.has(ch)) {
+      const next = chars[i + 1];
+      if (next && BN_INHERENT_A_FOLLOWER.has(next)) out += "a";
+    }
+  }
+  return out;
+}
+
+/** "নীলফামারী সদর" → "nilphamari" (Sadar stripped, like the English rule). */
+export function bnThanaSlug(thanaBn: string): string {
+  const base = thanaBn.replace(/\s*সদর\s*$/u, "").trim() || thanaBn.trim();
+  return locationSlug(transliterateBn(base));
+}
+
+function titleCase(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+// Merge full-country thanas into the table (Rangpur precise rows win).
+{
+  const seen = new Set(
+    LOCATION_TABLE.map((r) => `${r.districtBn}|${r.thanaBn}`),
+  );
+  for (const div of DIVISIONS) {
+    const divisionEn = DIVISION_EN[div.name] ?? div.name;
+    const divisionBn = div.name;
+    for (const dist of div.districts) {
+      const districtEn = DISTRICT_EN[dist.name] ?? dist.name;
+      for (const thanaBn of dist.thanas) {
+        if (seen.has(`${dist.name}|${thanaBn}`)) continue;
+        seen.add(`${dist.name}|${thanaBn}`);
+        const isSadar = /\s*সদর\s*$/u.test(thanaBn);
+        const slug = isSadar
+          ? locationSlug(districtEn)
+          : bnThanaSlug(thanaBn) || locationSlug(districtEn);
+        LOCATION_TABLE.push({
+          slug,
+          divisionEn,
+          divisionBn,
+          districtEn,
+          districtBn: dist.name,
+          upazilaEn: isSadar ? `${districtEn} Sadar` : titleCase(slug),
+          thanaBn,
+        });
+      }
+    }
+  }
+}
+
 /** slug → all matching upazilas (usually 1; "pirganj"/"phulbari" match 2 districts). */
 const bySlug = new Map<string, LocationMatch[]>();
 for (const row of LOCATION_TABLE) {
@@ -196,8 +424,47 @@ export function matchPlace(place: string): { slug: string; districtWide: boolean
 
 /** District's Sadar slug doubles as the district-wide portal slug. */
 export function districtSlug(districtEn: string): string | null {
-  const row = LOCATION_TABLE.find(
-    (r) => r.districtEn === districtEn && r.upazilaEn === `${districtEn} Sadar`,
-  );
+  const row =
+    LOCATION_TABLE.find(
+      (r) => r.districtEn === districtEn && r.upazilaEn === `${districtEn} Sadar`,
+    ) ?? LOCATION_TABLE.find((r) => r.districtEn === districtEn);
   return row?.slug ?? null;
+}
+
+/**
+ * Bangla thana → portal slug (for AreaExplorer / nearby-thana links).
+ * Pass districtBn too when a thana name repeats across districts —
+ * the slug is shared, so either match works.
+ */
+export function slugForBanglaThana(thanaBn: string, districtBn?: string): string | null {
+  const t = thanaBn.trim();
+  const row =
+    (districtBn
+      ? LOCATION_TABLE.find((r) => r.thanaBn === t && r.districtBn === districtBn.trim())
+      : undefined) ?? LOCATION_TABLE.find((r) => r.thanaBn === t);
+  return row?.slug ?? null;
+}
+
+/** Bangla district → district-wide portal slug (`?scope=district`). */
+export function slugForBanglaDistrict(districtBn: string): string | null {
+  const t = districtBn.trim();
+  // Prefer the Sadar thana's slug (it doubles as the district portal);
+  // districts without a Sadar thana (e.g. Dhaka) fall back to any thana —
+  // callers pair it with `?scope=district`, which ignores the thana.
+  const row =
+    LOCATION_TABLE.find((r) => r.districtBn === t && r.thanaBn === `${t} সদর`) ??
+    LOCATION_TABLE.find((r) => r.districtBn === t);
+  return row?.slug ?? null;
+}
+
+/** All thanas of a Bangla district (for "nearby thanas" on the portal). */
+export function thanasOfDistrict(districtBn: string): LocationMatch[] {
+  const t = districtBn.trim();
+  const seen = new Set<string>();
+  return LOCATION_TABLE.filter((r) => {
+    if (r.districtBn !== t) return false;
+    if (seen.has(r.thanaBn)) return false;
+    seen.add(r.thanaBn);
+    return true;
+  });
 }

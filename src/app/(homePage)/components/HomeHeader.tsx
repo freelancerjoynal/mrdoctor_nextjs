@@ -4,8 +4,9 @@ export function HomeHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
-        <Link href="/" className="text-xl font-black tracking-tight text-white sm:text-2xl">
-          মিস্টার ডাক্তার<span className="text-cyan-300">।</span>
+        <Link href="/" className="flex items-center" aria-label="মিস্টার ডাক্তার">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="মিস্টার ডাক্তার" className="h-10 w-auto object-contain sm:h-11" />
         </Link>
         <nav className="flex items-center gap-2 sm:gap-3">
           <Link

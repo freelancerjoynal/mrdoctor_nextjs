@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { DivisionNode } from "@/lib/locations";
+import { slugForBanglaThana } from "@/lib/locationSlugs";
+import { usePortalHref } from "@/lib/locationClient";
 
 const DIVISION_COLORS = [
   "from-indigo-500 to-violet-500",
@@ -16,8 +18,7 @@ const DIVISION_COLORS = [
 ];
 
 /** Tab-style explorer over the REAL chamber tree: division → district → thana, instantly. */
-export function AreaExplorer({ tree }: { tree: DivisionNode[] }) {
-  const [division, setDivision] = useState(tree[0]?.division ?? "");
+export function AreaExplorer({ tree }: { tree: DivisionNode[] }) {  const [division, setDivision] = useState(tree[0]?.division ?? "");
   const [districtName, setDistrictName] = useState(tree[0]?.districts[0]?.district ?? "");
   const [query, setQuery] = useState("");
 
@@ -162,18 +163,13 @@ export function AreaExplorer({ tree }: { tree: DivisionNode[] }) {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {active.thanas.map((t, i) => (
-                  <motion.span
+                  <ThanaPill
                     key={t.thana}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: Math.min(i * 0.02, 0.3) }}
-                    className="cursor-default rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold ring-1 ring-white/15 transition hover:bg-gradient-to-r hover:from-indigo-500 hover:to-fuchsia-500 sm:text-sm"
-                  >
-                    {t.thana}
-                    {t.doctors > 0 && (
-                      <span className="ml-1.5 text-cyan-300">{t.doctors} জন</span>
-                    )}
-                  </motion.span>
+                    thana={t.thana}
+                    district={active.district}
+                    doctors={t.doctors}
+                    index={i}
+                  />
                 ))}
               </div>
               <p className="mt-5 rounded-2xl bg-white/5 p-3 text-center text-xs text-white/60 ring-1 ring-white/10 sm:text-sm">
@@ -185,5 +181,48 @@ export function AreaExplorer({ tree }: { tree: DivisionNode[] }) {
         </AnimatePresence>
       </div>
     </section>
+  );
+}
+
+/**
+ * One thana pill — own component so the portal href hook runs per pill.
+ * usePortalHref renders `/s/<slug>` on the server + first client render
+ * (identical HTML, no hydration mismatch) and swaps to the absolute
+ * `<slug>.domain.com` URL after hydration.
+ */
+function ThanaPill({
+  thana,
+  district,
+  doctors,
+  index,
+}: {
+  thana: string;
+  district: string;
+  doctors: number;
+  index: number;
+}) {
+  const slug = slugForBanglaThana(thana, district);
+  const href = usePortalHref(slug);
+  const cls =
+    "rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-bold ring-1 ring-white/15 transition hover:bg-gradient-to-r hover:from-indigo-500 hover:to-fuchsia-500 sm:text-sm";
+  const inner = (
+    <>
+      {thana}
+      {doctors > 0 && <span className="ml-1.5 text-cyan-300">{doctors} জন</span>}
+    </>
+  );
+  const anim = {
+    initial: { opacity: 0, scale: 0.9 },
+    animate: { opacity: 1, scale: 1 },
+    transition: { delay: Math.min(index * 0.02, 0.3) },
+  };
+  return href ? (
+    <motion.a href={href} className={cls} title={`${thana} পোর্টাল খুলুন`} {...anim}>
+      {inner}
+    </motion.a>
+  ) : (
+    <motion.span className={`cursor-default ${cls}`} {...anim}>
+      {inner}
+    </motion.span>
   );
 }

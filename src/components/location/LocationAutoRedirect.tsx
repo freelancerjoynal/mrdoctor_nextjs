@@ -5,6 +5,7 @@ import {
   goToLocation,
   readLocationCookie,
   reverseGeocode,
+  useMounted,
   writeLocationCookie,
   type GeoHit,
 } from "@/lib/locationClient";
@@ -19,35 +20,46 @@ import { LocationPickerFields } from "@/components/location/LocationPickerFields
  */
 export function LocationAutoRedirect() {
   // Mount-gated render (SSR emits nothing → no hydration mismatch).
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [detecting, setDetecting] = useState(false);
+  const mounted = useMounted();
+  // Initializer-driven (no setState inside effects): popup shows when no
+  // location cookie exists; spinner shows when GPS is available to try.
+  const [visible, setVisible] = useState(
+    () => typeof window !== "undefined" && !readLocationCookie(),
+  );
+  const [detecting, setDetecting] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      "geolocation" in navigator &&
+      !readLocationCookie(),
+  );
   const [suggestion, setSuggestion] = useState<GeoHit | null>(null);
   const tried = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-    if (readLocationCookie() || tried.current) return;
+    if (!visible || tried.current) return;
     tried.current = true;
-    // Popup shows regardless — GPS just adds a shortcut when it hits.
-    setVisible(true);
     if (!("geolocation" in navigator)) return;
-    setDetecting(true);
+    let alive = true;
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
           const hit = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-          if (hit) setSuggestion(hit);
+          if (alive && hit) setSuggestion(hit);
         } catch {
           // no suggestion — manual picker stays
         } finally {
-          setDetecting(false);
+          if (alive) setDetecting(false);
         }
       },
-      () => setDetecting(false),
+      () => {
+        if (alive) setDetecting(false);
+      },
       { timeout: 15000 },
     );
-  }, []);
+    return () => {
+      alive = false;
+    };
+  }, [visible]);
 
   if (!mounted || !visible) return null;
 
@@ -81,7 +93,7 @@ export function LocationAutoRedirect() {
         ) : null}
         {suggestion ? (
           <button
-            onClick={() => goToLocation(suggestion.slug, suggestion.districtWide)}
+            onClick={() => goToLocation(suggestion.slug, false)}
             className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black hover:bg-emerald-400"
           >
             ✅ {suggestion.slug} পোর্টালে যান →

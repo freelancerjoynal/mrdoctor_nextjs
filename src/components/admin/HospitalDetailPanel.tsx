@@ -85,7 +85,7 @@ export function HospitalDetailPanel({ id }: { id: string }) {
           📍 {[h.addressLine, h.thana, h.district, h.division].filter(Boolean).join(", ")}
         </p>
         <p className="mt-1 text-xs font-bold text-slate-400">
-          /{h.slug} · {h.phone ?? ""} · {h.user?.email ?? ""} · 🚪 {toBn(h._count.chambers)} চেম্বার ·{" "}
+          /{h.slug} · {h.phone ?? ""} · {h.user?.email ?? ""} · 🚪 {toBn(h._count?.chambers ?? 0)} চেম্বার ·{" "}
           {h.status === "APPROVED" ? "✅ অনুমোদিত" : "⏳ বিচারাধীন"}
         </p>
       </section>

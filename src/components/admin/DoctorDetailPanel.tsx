@@ -105,7 +105,7 @@ export function DoctorDetailPanel({ id }: { id: string }) {
           <p className="mt-2 text-xs font-bold text-slate-400">কোনো চেম্বার নেই।</p>
         )}
         <ul className="mt-2 space-y-2">
-          {d.chambers.map((c) => (
+          {(d.chambers ?? []).map((c) => (
             <li key={c.id} className="rounded-xl bg-slate-50 p-3 text-xs">
               <p className="font-black text-slate-800">
                 {c.chamberName ?? "চেম্বার"}

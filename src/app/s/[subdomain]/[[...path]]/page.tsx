@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { doctorPortrait, fallbackAvatar, resolveProfile } from "@/lib/profile";
+import { headers } from "next/headers";
+import { doctorPortrait, resolveProfile } from "@/lib/profile";
 import { buildSerialUrl, buildWaHref } from "@/lib/serial";
 import { DoctorSite } from "@/components/sites/DoctorSite";
 import { HospitalSite } from "@/components/sites/HospitalSite";
-import { doctorDemo } from "@/components/sites/doctorDemo";
+import { SubdomainNotFound } from "@/components/sites/SubdomainNotFound";
 
 interface SiteParams {
   subdomain: string;
@@ -23,15 +24,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { subdomain } = await params;
   const profile = await resolveProfile(subdomain);
-  // Favicon: DB profile picture, else the global bundled avatar.
-  const demoIcon = { icon: fallbackAvatar() };
-  // No database record (yet) → static demo personal site, so every
-  // subdomain still feels like a complete individual website.
+  // No database record → "page not available" (never a demo stand-in —
+  // unknown subdomains must not impersonate a real-looking doctor).
   if (!profile)
     return {
-      title: `${doctorDemo.name} — ${doctorDemo.speciality}`,
-      description: doctorDemo.heroIntro.slice(0, 150),
-      icons: demoIcon,
+      title: "পেজ পাওয়া যায়নি | মিস্টার ডাক্তার",
+      description: `“${subdomain}” নামে কোনো ডাক্তার বা হাসপাতালের পোর্টাল নেই।`,
     };
   if (profile.type === "doctor") {
     const d = profile.data;
@@ -62,27 +60,23 @@ export default async function SubdomainSitePage({
   const serialBase = process.env.WA_BOT_URL ?? "https://mrdoctor.mdjoynal.com/d/";
   const waNumber = (process.env.WA_NUMBER_GLOBAL ?? "15551967401").replace(/[^\d]/g, "");
   if (!profile) {
-    const username = subdomain;
-    return (
-      <DoctorSite
-        doctor={null}
-        serialHref={buildSerialUrl(serialBase, username)}
-        waNumber={waNumber}
-        waHref={buildWaHref(waNumber, username)}
-      />
-    );
+    const host = (await headers()).get("host") ?? "";
+    return <SubdomainNotFound subdomain={subdomain} host={host} />;
   }
 
   if (profile.type === "doctor") {
     const username = profile.data.username;
+    const host = (await headers()).get("host") ?? "";
     return (
       <DoctorSite
         doctor={profile.data}
         serialHref={buildSerialUrl(serialBase, username)}
         waNumber={waNumber}
         waHref={buildWaHref(waNumber, username)}
+        host={host}
       />
     );
   }
-  return <HospitalSite hospital={profile.data} serialBase={serialBase} />;
+  const host = (await headers()).get("host") ?? "";
+  return <HospitalSite hospital={profile.data} serialBase={serialBase} host={host} />;
 }

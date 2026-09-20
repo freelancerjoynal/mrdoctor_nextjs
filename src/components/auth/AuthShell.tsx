@@ -19,8 +19,9 @@ export function AuthShell({
         <div className="absolute -left-24 -top-24 h-96 w-96 rounded-full bg-violet-600/40 blur-3xl" />
         <div className="absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-cyan-500/30 blur-3xl" />
         <div className="absolute left-1/3 top-1/3 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl" />
-        <Link href="/" className="relative text-2xl font-black tracking-tight">
-          মিস্টার ডাক্তার<span className="text-cyan-300">।</span>
+        <Link href="/" className="relative flex items-center" aria-label="মিস্টার ডাক্তার">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="মিস্টার ডাক্তার" className="h-11 w-auto object-contain" />
         </Link>
         <div className="relative">
           <p className="mb-3 inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-cyan-200 ring-1 ring-white/20">
@@ -48,8 +49,9 @@ export function AuthShell({
       <main className="relative flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-4 py-10 sm:p-6">
         <div className="w-full max-w-md">
           <div className="mb-5 lg:hidden">
-            <Link href="/" className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
-              মিস্টার ডাক্তার<span className="text-indigo-600">।</span>
+            <Link href="/" className="flex items-center" aria-label="মিস্টার ডাক্তার">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-main.png" alt="মিস্টার ডাক্তার" className="h-10 w-auto object-contain" />
             </Link>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
