@@ -10,6 +10,7 @@ const NAV = [
   { href: "/admin", label: "ওভারভিউ", emoji: "🏠", exact: true },
   { href: "/admin/directory", label: "ডাক্তার ও হাসপাতাল", emoji: "🏥", exact: false },
   { href: "/admin/locations", label: "লোকেশন পোর্টাল", emoji: "📍", exact: false },
+  { href: "/admin/seo", label: "SEO সেটিংস", emoji: "🔍", exact: false },
   { href: "/admin/applications", label: "যোগদানের আবেদন", emoji: "📥", exact: false },
   { href: "/admin/create-account", label: "অ্যাকাউন্ট তৈরি", emoji: "➕", exact: false },
   { href: "/admin/income", label: "আয়", emoji: "💰", exact: false },

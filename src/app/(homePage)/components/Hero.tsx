@@ -4,9 +4,12 @@ import { toBn } from "@/lib/bn";
 export function Hero({
   districts,
   thanas,
+  h1,
 }: {
   districts: number;
   thanas: number;
+  /** SEO H1 override from the dashboard (plain text). */
+  h1?: string | null;
 }) {
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-white to-emerald-50">
@@ -21,10 +24,16 @@ export function Hero({
             ডাক্তার · হাসপাতাল · রোগী — এক ঠিকানায়
           </p>
           <h1 className="mt-4 max-w-xl text-3xl font-black leading-snug tracking-tight text-slate-900 min-[480px]:text-4xl sm:text-5xl sm:leading-tight">
-            রোগীকে ডাক্তারের কাছে, ডাক্তারকে হাসপাতালের সাথে{" "}
-            <span className="bg-gradient-to-r from-amber-600 via-orange-500 to-emerald-600 bg-clip-text text-transparent">
-              যুক্ত করি আমরা
-            </span>
+            {h1?.trim() ? (
+              h1.trim()
+            ) : (
+              <>
+                রোগীকে ডাক্তারের কাছে, ডাক্তারকে হাসপাতালের সাথে{" "}
+                <span className="bg-gradient-to-r from-amber-600 via-orange-500 to-emerald-600 bg-clip-text text-transparent">
+                  যুক্ত করি আমরা
+                </span>
+              </>
+            )}
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base">
             মিস্টার ডাক্তার হলো ডাক্তার, হাসপাতাল ও রোগীর মিলনস্থল। রোগী ঘরে বসে

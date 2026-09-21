@@ -143,6 +143,8 @@ export function HospitalPortalModal({
                               <img
                                 src={doctorPortrait(c.doctor.profilePicture)}
                                 alt={c.doctor.name}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
                               />
                               <span className="min-w-0 flex-1">
@@ -189,6 +191,8 @@ export function HospitalPortalModal({
                           <img
                             src={doctorPortrait(d.profilePicture)}
                             alt={d.name}
+                            loading="lazy"
+                            decoding="async"
                             className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
                           />
                           <span className="max-w-32 truncate text-xs font-black text-slate-800">

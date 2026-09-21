@@ -94,6 +94,8 @@ export function DoctorQuickView({
           <img
               src={doctorPortrait(entry.profilePicture)}
             alt={entry.name}
+            loading="lazy"
+            decoding="async"
             className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-2 ring-white/30"
             onError={(e) => {
               const fallback = fallbackAvatar();

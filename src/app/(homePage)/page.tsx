@@ -1,5 +1,15 @@
 import type { Metadata } from "next";
 import { HomeHeader } from "./components/HomeHeader";
+import { FAQS } from "./components/Faq";
+import {
+  fetchPageSeo,
+  buildPageMetadata,
+  organizationJsonLd,
+  websiteJsonLd,
+  faqJsonLd,
+  withExtra,
+  JsonLd,
+} from "@/lib/seo";
 import { Hero } from "./components/Hero";
 import { LocationAutoRedirect } from "@/components/location/LocationAutoRedirect";
 import { AreaExplorer } from "./components/AreaExplorer";
@@ -16,11 +26,16 @@ import { HomeFooter } from "./components/HomeFooter";
 import { getLocationTree } from "@/lib/locations";
 import { DIVISIONS } from "@/lib/areas";
 
-export const metadata: Metadata = {
-  title: "মিস্টার ডাক্তার — ঘরে বসে ফ্রি ডাক্তারের সিরিয়াল",
-  description:
-    "আপনার এলাকা বেছে অনলাইনে ডাক্তারের সিরিয়াল নিন — ৬৪ জেলা, ৪৯৪+ থানা ও উপজেলার যাচাইকৃত ডাক্তার, চেম্বার ও হাসপাতাল। ডাক্তার ও হাসপাতালের সফটওয়্যার সম্পূর্ণ ফ্রি।",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await fetchPageSeo("GLOBAL", "home");
+  return buildPageMetadata(seo, {
+    defaultTitle: "মিস্টার ডাক্তার — ঘরে বসে ফ্রি ডাক্তারের সিরিয়াল",
+    defaultDescription:
+      "আপনার এলাকা বেছে অনলাইনে ডাক্তারের সিরিয়াল নিন — ৬৪ জেলা, ৪৯৪+ থানা ও উপজেলার যাচাইকৃত ডাক্তার, চেম্বার ও হাসপাতাল। ডাক্তার ও হাসপাতালের সফটওয়্যার সম্পূর্ণ ফ্রি।",
+    canonical: "/",
+    ogImage: "/logo-main.png",
+  });
+}
 
 export default async function HomePage() {
   const { tree } = await getLocationTree();
@@ -31,12 +46,17 @@ export default async function HomePage() {
     (n, d) => n + d.districts.reduce((m, x) => m + x.thanas.length, 0),
     0,
   );
+  const seo = await fetchPageSeo("GLOBAL", "home");
+  const schemas = withExtra(seo, [organizationJsonLd(), websiteJsonLd(), faqJsonLd(FAQS)]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
+      {schemas.map((s, i) => (
+        <JsonLd key={i} data={s} />
+      ))}
       <HomeHeader />
       <main>
-        <Hero districts={districts} thanas={thanas} />
+        <Hero districts={districts} thanas={thanas} h1={seo?.h1?.trim() || null} />
         {/* Location finding comes first — no doctor/hospital lists on the
             homepage, only area → thana portals. */}
         <AreaExplorer tree={tree} />

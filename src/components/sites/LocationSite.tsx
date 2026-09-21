@@ -163,6 +163,7 @@ export function LocationSite({
   hospitalsTotal,
   host,
   setting = null,
+  h1 = null,
 }: {
   matches: LocationMatch[];
   doctors: LocationDoctor[];
@@ -175,6 +176,8 @@ export function LocationSite({
   host: string;
   /** Super-admin hero/text customization (null = defaults). */
   setting?: LocationPortalSetting | null;
+  /** SEO H1 override from the dashboard (wins over the portal headline). */
+  h1?: string | null;
 }) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -344,7 +347,9 @@ export function LocationSite({
               <span className="text-teal-700">{title}</span>
             </p>
             <h1 className="mt-3 text-3xl font-black leading-tight tracking-tight sm:text-5xl">
-              {setting?.headline ? (
+              {h1?.trim() ? (
+                h1.trim()
+              ) : setting?.headline ? (
                 setting.headline
               ) : (
                 <>
@@ -544,6 +549,8 @@ export function LocationSite({
                       <img
                         src={doctorPortrait(d.profilePicture)}
                         alt={d.name}
+                        loading="lazy"
+                        decoding="async"
                         className="h-60 w-full object-cover sm:h-64"
                       />
                       <span className="absolute right-2.5 top-2.5 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-black text-teal-700 shadow">
@@ -640,6 +647,8 @@ export function LocationSite({
                         <img
                           src={post.coverImage}
                           alt={post.title}
+                          loading="lazy"
+                          decoding="async"
                           className="h-full w-full object-cover transition group-hover:scale-105"
                         />
                       ) : (
@@ -664,6 +673,8 @@ export function LocationSite({
                       <img
                         src={doctorPortrait(doctor.profilePicture)}
                         alt={doctor.name}
+                        loading="lazy"
+                        decoding="async"
                         className="h-8 w-8 rounded-full object-cover ring-1 ring-slate-200"
                       />
                       <span className="min-w-0">

@@ -412,6 +412,7 @@ export function DoctorSite({
                 <img
                   src={portrait}
                   alt={name}
+                  fetchPriority="high"
                   className="h-full w-full object-cover"
               onError={(e) => {
                 if (!e.currentTarget.src.endsWith(avatarFallback)) {

@@ -2,6 +2,15 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getLocationBySlug, allLocationSlugs } from "@/lib/locationSlugs";
+import { getRootDomain } from "@/lib/subdomain";
+import { buildPortalUrl } from "@/lib/portal";
+import {
+  fetchPageSeo,
+  buildPageMetadata,
+  portalWebsiteJsonLd,
+  withExtra,
+  JsonLd,
+} from "@/lib/seo";
 import {
   LocationSite,
   type LocationDoctor,
@@ -48,10 +57,17 @@ export async function generateMetadata({
   const matches = getLocationBySlug(location);
   if (matches.length === 0) return { title: "এলাকা পাওয়া যায়নি" };
   const primary = matches[0]!;
-  return {
-    title: `${primary.thanaBn} — ডাক্তার ও হাসপাতাল | মিস্টার ডাক্তার`,
-    description: `${primary.thanaBn} (${primary.upazilaEn}, ${primary.districtEn}) এলাকার যাচাইকৃত ডাক্তার, বিভাগ, চেম্বার ও হাসপাতালের তালিকা।`,
-  };
+  const key = location.trim().toLowerCase();
+  const seo = await fetchPageSeo("LOCATION", key);
+  return buildPageMetadata(seo, {
+    defaultTitle: `${primary.thanaBn} — ডাক্তার ও হাসপাতাল`,
+    defaultDescription: `${primary.thanaBn} (${primary.districtBn} জেলা) এলাকার যাচাইকৃত ডাক্তার, বিভাগ, চেম্বার ও হাসপাতাল — অনলাইনে ফ্রি সিরিয়াল নিন।`,
+    // Primary URL is the thana subdomain portal (avoids /l/* duplication).
+    canonical: `https://${key}.${getRootDomain()}/`,
+    ogImage: "/logo-main.png",
+    // Individual website name for this thana portal.
+    siteName: `${primary.thanaBn} · মিস্টার ডাক্তার`,
+  });
 }
 
 async function fetchPortal(
@@ -140,17 +156,63 @@ export default async function LocationPage({
   }
 
   const host = (await headers()).get("host") ?? "";
+  const key = location.trim().toLowerCase();
+  const portalUrl = `https://${key}.${getRootDomain()}/`;
+  const doctors = [...doctorsByKey.values()];
+  const hospitals = [...hospitalsByKey.values()];
+  const seo = await fetchPageSeo("LOCATION", key);
+  const itemList = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `${matches[0]!.thanaBn} — ডাক্তার ও হাসপাতাল`,
+    itemListElement: [
+      ...doctors.slice(0, 10).map((d, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        item: {
+          "@type": "Physician",
+          name: d.name,
+          medicalSpecialty: d.speciality,
+          url: buildPortalUrl(d.username, host),
+        },
+      })),
+      ...hospitals.slice(0, 10).map((h, i) => ({
+        "@type": "ListItem",
+        position: doctors.slice(0, 10).length + i + 1,
+        item: {
+          "@type": "Hospital",
+          name: h.name,
+          url: buildPortalUrl(h.slug, host),
+        },
+      })),
+    ],
+  };
+  const schemas = withExtra(seo, [
+    // Individual-website schema for this thana portal.
+    portalWebsiteJsonLd({
+      name: seo?.siteName?.trim() || `${matches[0]!.thanaBn} · মিস্টার ডাক্তার`,
+      url: portalUrl,
+      description: `${matches[0]!.thanaBn} এলাকার যাচাইকৃত ডাক্তার, চেম্বার ও হাসপাতাল — অনলাইনে ফ্রি সিরিয়াল।`,
+    }),
+    itemList,
+  ]);
   return (
-    <LocationSite
-      matches={matches}
-      doctors={[...doctorsByKey.values()]}
-      hospitals={[...hospitalsByKey.values()]}
-      categories={categories}
-      chambers={chambers}
-      doctorsTotal={doctorsTotal}
-      hospitalsTotal={hospitalsTotal}
-      host={host}
-      setting={setting}
-    />
+    <>
+      {schemas.map((s, i) => (
+        <JsonLd key={i} data={s} />
+      ))}
+      <LocationSite
+        matches={matches}
+        doctors={doctors}
+        hospitals={hospitals}
+        categories={categories}
+        chambers={chambers}
+        doctorsTotal={doctorsTotal}
+        hospitalsTotal={hospitalsTotal}
+        host={host}
+        setting={setting}
+        h1={seo?.h1?.trim() || null}
+      />
+    </>
   );
 }

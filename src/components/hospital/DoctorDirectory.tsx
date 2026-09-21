@@ -95,6 +95,8 @@ export function DoctorDirectory({
                 <img
                   src={doctorPortrait(d.profilePicture)}
                   alt={d.name}
+                  loading="lazy"
+                  decoding="async"
                   className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
                   onError={(e) => {
                     const fallback = fallbackAvatar();
