@@ -1,24 +1,37 @@
 /**
  * Portal URL helpers.
  *
- * Doctor portals live on their own subdomain (`<username>.domain.com`).
+ * Doctor portals live on their own subdomain (`<username>.mrdoctor.com.bd`).
+ * Local dev uses ONLY `*.localhost` (e.g. `dr-rahman.localhost:3000` → apex `localhost:3000`).
  * From inside another portal (e.g. a hospital popup) a "view portal" link
  * must navigate to that subdomain — never render it nested under a path
- * like `domain.com/doctor/<username>` or `/s/<username>`.
+ * like `mrdoctor.com.bd/doctor/<username>` or `/s/<username>`.
  */
+
+import { DEFAULT_ROOT_DOMAIN, DEV_SUFFIXES } from "./subdomain";
 
 function stripPort(host: string): string {
   return host.split(":")[0].trim().toLowerCase();
 }
 
+function effectiveRoot(): string {
+  const fromEnv = (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "")
+    .split(":")[0]
+    .trim()
+    .toLowerCase()
+    .replace(/^\./, "");
+  return fromEnv || DEFAULT_ROOT_DOMAIN;
+}
+
 /**
- * Build the absolute URL of a public portal (doctor `<username>.domain.com`
- * or hospital `<slug>.domain.com`) from the current host.
+ * Build the absolute URL of a public portal (doctor `<username>.mrdoctor.com.bd`
+ * or hospital `<slug>.mrdoctor.com.bd`) from the current host.
+ * - `localhost:3000` (apex) → `http://<sub>.localhost:3000`
  * - `dr-rahman.localhost:3000` → `http://<sub>.localhost:3000`
- * - `hospital1.domain.com` → `https://<sub>.domain.com`
- * - apex `domain.com` → `https://<sub>.domain.com`
+ * - `mrdoctor.com.bd` (apex) → `https://<sub>.mrdoctor.com.bd`
+ * - `<anything>.mrdoctor.com.bd` → `https://<sub>.mrdoctor.com.bd`
  * Falls back to `/s/<sub>` only when the host shape is unknown
- * (raw IP, single label) so the link never dead-ends.
+ * (raw IP, tunnel URL, single label) so the link never dead-ends.
  */
 export function buildPortalUrl(subdomain: string, host?: string): string {
   const name = (subdomain || "").trim().toLowerCase();
@@ -33,34 +46,30 @@ export function buildPortalUrl(subdomain: string, host?: string): string {
   const portMatch = current.match(/:(\d+)$/);
   const port = portMatch ? `:${portMatch[1]}` : "";
   const hostname = stripPort(current);
-  const loopbackSuffixes = [".localhost", ".lvh.me", ".nip.io", ".sslip.io"];
+  const root = effectiveRoot();
   const isLoopback =
-    hostname === "localhost" || loopbackSuffixes.some((s) => hostname.endsWith(s));
+    hostname === "localhost" || DEV_SUFFIXES.some((s) => hostname.endsWith(s));
 
   // Server-rendered (no window): dev loopback is plain http, production https.
   const serverProto = isLoopback ? "http:" : "https:";
   const base = typeof window !== "undefined" ? proto : serverProto;
 
-  // localhost-style: <anything>.localhost → <username>.localhost
+  // Local dev ONLY via *.localhost: <anything>.localhost → <username>.localhost
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     return `${base}//${encodeURIComponent(name)}.localhost${port}`;
   }
-  // loopback helpers: <anything>.lvh.me → <username>.lvh.me
-  for (const suffix of [".lvh.me", ".nip.io", ".sslip.io"]) {
-    if (hostname.endsWith(suffix)) {
+  // loopback helpers (lvh.me etc, rarely used): <anything>.lvh.me → <username>.lvh.me
+  for (const suffix of DEV_SUFFIXES.slice(1)) {
+    if (hostname === suffix.slice(1) || hostname.endsWith(suffix)) {
       return `${base}//${encodeURIComponent(name)}${suffix}${port}`;
     }
   }
-  // raw IP or single label → cannot build a subdomain, keep internal path
-  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || !hostname.includes(".")) {
-    return `/s/${encodeURIComponent(name)}`;
+  // Production apex first: mrdoctor.com.bd → <sub>.mrdoctor.com.bd
+  if (hostname === root || hostname === `www.${root}` || hostname.endsWith(`.${root}`)) {
+    return `${base}//${encodeURIComponent(name)}.${root}${port}`;
   }
-  // production-style: first label is a subdomain (or www) → swap it
-  const parts = hostname.split(".");
-  const root =
-    process.env.NEXT_PUBLIC_ROOT_DOMAIN?.split(":")[0].trim().toLowerCase().replace(/^\./, "") ||
-    (parts.length >= 3 ? parts.slice(1).join(".") : hostname);
-  return `${base}//${encodeURIComponent(name)}.${root}${port}`;
+  // raw IP / tunnel URL / single label → cannot build a subdomain, keep internal path
+  return `/s/${encodeURIComponent(name)}`;
 }
 
 /** Doctor-specific alias — same subdomain mechanics as {@link buildPortalUrl}. */
@@ -72,8 +81,9 @@ export function buildDoctorPortalUrl(username: string, host?: string): string {
  * Build an apex (main-site) URL from any host, e.g. for Apply/Login links
  * inside a subdomain portal. Never hardcoded — derived from the current host:
  * - `nilphamari.localhost:3000` + `/apply` → `http://localhost:3000/apply`
- * - `nilphamari.mrdoctor.com` + `/apply` → `https://mrdoctor.com/apply`
+ * - `nilphamari.mrdoctor.com.bd` + `/apply` → `https://mrdoctor.com.bd/apply`
  * - apex hosts pass through unchanged.
+ * - unknown hosts (tunnel URLs, IPs) stay on the same host — only the path changes.
  */
 export function buildApexUrl(path: string, host?: string): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
@@ -84,9 +94,9 @@ export function buildApexUrl(path: string, host?: string): string {
   const portMatch = current.match(/:(\d+)$/);
   const port = portMatch ? `:${portMatch[1]}` : "";
   const hostname = stripPort(current);
-  const loopbackSuffixes = [".localhost", ".lvh.me", ".nip.io", ".sslip.io"];
+  const root = effectiveRoot();
   const isLoopback =
-    hostname === "localhost" || loopbackSuffixes.some((s) => hostname.endsWith(s));
+    hostname === "localhost" || DEV_SUFFIXES.some((s) => hostname.endsWith(s));
   const proto =
     typeof window !== "undefined"
       ? window.location.protocol
@@ -94,19 +104,26 @@ export function buildApexUrl(path: string, host?: string): string {
         ? "http:"
         : "https:";
 
-  let apex = hostname;
-  const firstDot = hostname.indexOf(".");
-  if (firstDot > 0) {
-    const configured = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.split(":")[0]
-      .trim()
-      .toLowerCase()
-      .replace(/^\./, "");
-    if (configured && hostname.endsWith(`.${configured}`)) {
-      apex = configured;
-    } else if (hostname !== "localhost") {
-      // Drop the subdomain label (one level: <sub>.apex).
-      apex = hostname.slice(firstDot + 1);
+  // Local dev apex: *.localhost → localhost
+  if (hostname === "localhost") return `${proto}//localhost${port}${cleanPath}`;
+  if (hostname.endsWith(".localhost")) return `${proto}//localhost${port}${cleanPath}`;
+  for (const suffix of DEV_SUFFIXES.slice(1)) {
+    const base = suffix.slice(1); // "lvh.me"
+    if (hostname === base) return `${proto}//${base}${port}${cleanPath}`;
+    if (hostname.endsWith(suffix)) {
+      // <sub>.lvh.me → lvh.me (loopback root)
+      return `${proto}//${base}${port}${cleanPath}`;
     }
   }
-  return `${proto}//${apex}${port}${cleanPath}`;
+
+  // Production apex first.
+  if (hostname === root || hostname === `www.${root}`) {
+    return `${proto}//${root}${port}${cleanPath}`;
+  }
+  if (hostname.endsWith(`.${root}`)) {
+    return `${proto}//${root}${port}${cleanPath}`;
+  }
+
+  // Unknown host (tunnel URL, IP): the tunnel URL IS the main site — keep host.
+  return `${proto}//${hostname}${port}${cleanPath}`;
 }

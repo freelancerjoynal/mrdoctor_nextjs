@@ -251,34 +251,6 @@ export function DoctorSite({
       <PortalHeader
         logoHref={host ? buildApexUrl("/", host) : "#home"}
         logoAriaLabel="মিস্টার ডাক্তার — মূল সাইট"
-        identity={
-          <span className="flex min-w-0 items-center gap-2 border-l border-slate-200 pl-2.5">
-            {portrait !== avatarFallback ? (
-              /* eslint-disable-next-line @next/next/no-img-element -- site logo is the doctor's profile picture */
-              <img
-                src={portrait}
-                alt={name}
-                className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-emerald-900/15"
-                onError={(e) => {
-                  if (!e.currentTarget.src.endsWith(avatarFallback)) {
-                    e.currentTarget.src = avatarFallback;
-                  }
-                }}
-              />
-            ) : (
-              <span
-                aria-hidden="true"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-lg font-black text-white ring-1 ring-emerald-900/15"
-              >
-                {brandInitial}
-              </span>
-            )}
-            <span className="hidden min-w-0 leading-tight min-[480px]:block">
-              <span className="block truncate text-sm font-bold text-emerald-950">{name}</span>
-              <span className="block truncate text-[11px] text-slate-500">{degree}</span>
-            </span>
-          </span>
-        }
         pill={
           <span className="hidden shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 ring-1 ring-emerald-200 min-[420px]:inline-flex">
             🩺 {speciality}
