@@ -29,6 +29,11 @@ export const metadata: Metadata = {
   },
   description:
     "সারা বাংলাদেশে অনলাইনে ফ্রি ডাক্তারের সিরিয়াল, ডাক্তারদের জন্য ফ্রি চেম্বার সফটওয়্যার ও হাসপাতাল ড্যাশবোর্ড — ৬৪ জেলা, ৪৯৪+ থানা ও উপজেলা।",
+
+  icons: {
+    icon: [{ url: "/favicon.ico", sizes: "any", type: "image/x-icon" }],
+    shortcut: [{ url: "/favicon.ico", type: "image/x-icon" }],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -39,10 +44,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <StoreProvider>{children}</StoreProvider>
-        {/* Route-change progress bar + floating scroll-to-top on every page. */}
+
         <Suspense fallback={null}>
           <TopProgressBar />
         </Suspense>
+
         <ScrollToTop />
       </body>
     </html>

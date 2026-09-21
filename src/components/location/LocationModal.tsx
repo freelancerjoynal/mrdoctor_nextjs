@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useMounted } from "@/lib/locationClient";
 
 /**
  * Universal modal shell — centered in the viewport with a blurred
@@ -26,7 +28,13 @@ export function LocationModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  // Portal to <body>: headers use backdrop-blur, which traps `fixed`
+  // positioning inside them — portaling guarantees true viewport
+  // centering no matter which button opened the popup.
+  const mounted = useMounted();
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       className="loc-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md"
       onClick={onClose}
@@ -51,6 +59,7 @@ export function LocationModal({
         <p className="mt-1 pr-10 text-xs text-slate-500">{subtitle}</p>
         <div className="mt-3">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
