@@ -468,3 +468,15 @@ export function thanasOfDistrict(districtBn: string): LocationMatch[] {
     return true;
   });
 }
+
+/** Bangla district → official English district (for bilingual search/labels). */
+export function districtEnFor(districtBn: string): string | null {
+  const row = LOCATION_TABLE.find((r) => r.districtBn === districtBn.trim());
+  return row?.districtEn ?? DISTRICT_EN[districtBn.trim()] ?? null;
+}
+
+/** Bangla division → official English division (for bilingual search/labels). */
+export function divisionEnFor(divisionBn: string): string | null {
+  const row = LOCATION_TABLE.find((r) => r.divisionBn === divisionBn.trim());
+  return row?.divisionEn ?? DIVISION_EN[divisionBn.trim()] ?? null;
+}

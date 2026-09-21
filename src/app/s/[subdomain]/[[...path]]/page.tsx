@@ -54,10 +54,12 @@ export default async function SubdomainSitePage({
   const { subdomain } = await params;
   const profile = await resolveProfile(subdomain);
   // Serial deep-link base already lives in env (WA_BOT_URL=.../d/).
-  // Username after `d/` is the doctor's username (subdomain on static demo).
+  // Canonical: https://mrdoctor.com.bd/d/<username> (Next `/d/[username]`
+  // route → WhatsApp). Username after `d/` is the doctor's username
+  // (subdomain on static demo); hospitals use their slug.
   // All direct contact goes through the shared WhatsApp number (WA_NUMBER_GLOBAL)
   // with the doctor's own username attached — no personal numbers on site.
-  const serialBase = process.env.WA_BOT_URL ?? "https://mrdoctor.mdjoynal.com/d/";
+  const serialBase = process.env.WA_BOT_URL ?? "https://mrdoctor.com.bd/d/";
   const waNumber = (process.env.WA_NUMBER_GLOBAL ?? "15551967401").replace(/[^\d]/g, "");
   if (!profile) {
     const host = (await headers()).get("host") ?? "";

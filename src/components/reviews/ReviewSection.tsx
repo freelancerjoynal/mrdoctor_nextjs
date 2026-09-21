@@ -77,7 +77,7 @@ export function ReviewSection({
     );
   }
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm">
+    <section id="testimonials" className="scroll-mt-24 rounded-2xl bg-white p-6 shadow-sm">
       {inner}
     </section>
   );

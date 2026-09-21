@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useHideOnScroll } from "@/components/ui/useHideOnScroll";
 
 /**
  * Shared portal header — MrDoctor logo left (big), and on the right the
@@ -29,15 +32,24 @@ export function PortalHeader({
   actions?: ReactNode;
   mobilePanel?: ReactNode;
 }) {
+  // Same hide-on-scroll behaviour as every other site header —
+  // design/content untouched, only the bar slides away on scroll down.
+  const { hidden } = useHideOnScroll();
+
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-2 sm:gap-3 sm:px-6">
+    <header
+      className={`header-enter sticky top-0 z-50 border-b border-slate-200/70 bg-white/95 backdrop-blur transition-transform duration-300 ${
+        hidden ? "-translate-y-full" : "translate-y-0"
+      }`}
+    >
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-2 gap-y-1.5 px-4 py-1.5 sm:gap-3 sm:px-6 sm:py-2">
         <a href={logoHref} className="flex min-w-0 shrink-0 items-center gap-2.5" aria-label={logoAriaLabel}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-main.png"
             alt="মিস্টার ডাক্তার"
-            className="h-12 w-auto shrink-0 object-contain sm:h-14"
+            width={200}
+            className="h-auto w-[150px] shrink-0 object-contain sm:w-[200px]"
           />
           {identity}
         </a>

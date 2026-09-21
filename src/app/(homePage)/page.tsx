@@ -1,41 +1,57 @@
+import type { Metadata } from "next";
 import { HomeHeader } from "./components/HomeHeader";
 import { Hero } from "./components/Hero";
 import { LocationAutoRedirect } from "@/components/location/LocationAutoRedirect";
-import { LocationSwitcher } from "@/components/location/LocationSwitcher";
-import { Specialities } from "./components/Specialities";
 import { AreaExplorer } from "./components/AreaExplorer";
+import { ConnectionTrio } from "./components/ConnectionTrio";
 import { HowItWorks } from "./components/HowItWorks";
+import { FreeSoftware } from "./components/FreeSoftware";
+import { Specialities } from "./components/Specialities";
 import { WhyUs } from "./components/WhyUs";
 import { DoctorJoin } from "./components/DoctorJoin";
 import { Testimonials } from "./components/Testimonials";
 import { Faq } from "./components/Faq";
-import { RoleStrip } from "./components/RoleStrip";
 import { CtaBanner } from "./components/CtaBanner";
 import { HomeFooter } from "./components/HomeFooter";
-import { getLocationTree, treeTotals } from "@/lib/locations";
+import { getLocationTree } from "@/lib/locations";
+import { DIVISIONS } from "@/lib/areas";
+
+export const metadata: Metadata = {
+  title: "মিস্টার ডাক্তার — ঘরে বসে ফ্রি ডাক্তারের সিরিয়াল",
+  description:
+    "আপনার এলাকা বেছে অনলাইনে ডাক্তারের সিরিয়াল নিন — ৬৪ জেলা, ৪৯৪+ থানা ও উপজেলার যাচাইকৃত ডাক্তার, চেম্বার ও হাসপাতাল। ডাক্তার ও হাসপাতালের সফটওয়্যার সম্পূর্ণ ফ্রি।",
+};
 
 export default async function HomePage() {
   const { tree } = await getLocationTree();
-  const { districts, thanas } = treeTotals(tree);
+  // Hero always shows full-country coverage (64 districts, 494 thanas),
+  // not just the areas with live chamber data yet.
+  const districts = DIVISIONS.reduce((n, d) => n + d.districts.length, 0);
+  const thanas = DIVISIONS.reduce(
+    (n, d) => n + d.districts.reduce((m, x) => m + x.thanas.length, 0),
+    0,
+  );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-white text-slate-900">
       <HomeHeader />
       <main>
         <Hero districts={districts} thanas={thanas} />
-        <Specialities />
+        {/* Location finding comes first — no doctor/hospital lists on the
+            homepage, only area → thana portals. */}
         <AreaExplorer tree={tree} />
+        <ConnectionTrio />
         <HowItWorks />
+        <FreeSoftware />
+        <Specialities />
         <WhyUs />
         <DoctorJoin />
         <Testimonials />
         <Faq />
-        <RoleStrip />
         <CtaBanner />
       </main>
       <HomeFooter />
       <LocationAutoRedirect />
-      <LocationSwitcher />
     </div>
   );
 }

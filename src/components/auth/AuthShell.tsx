@@ -21,7 +21,7 @@ export function AuthShell({
         <div className="absolute left-1/3 top-1/3 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl" />
         <Link href="/" className="relative flex items-center" aria-label="মিস্টার ডাক্তার">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="মিস্টার ডাক্তার" className="h-11 w-auto object-contain" />
+          <img src="/logo.png" alt="মিস্টার ডাক্তার" width={200} className="h-auto w-[200px] object-contain" />
         </Link>
         <div className="relative">
           <p className="mb-3 inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-cyan-200 ring-1 ring-white/20">
@@ -51,7 +51,7 @@ export function AuthShell({
           <div className="mb-5 lg:hidden">
             <Link href="/" className="flex items-center" aria-label="মিস্টার ডাক্তার">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-main.png" alt="মিস্টার ডাক্তার" className="h-10 w-auto object-contain" />
+              <img src="/logo-main.png" alt="মিস্টার ডাক্তার" width={200} className="h-auto w-[150px] object-contain sm:w-[200px]" />
             </Link>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h1>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { buildApexUrl, buildPortalUrl } from "@/lib/portal";
 import { doctorPortrait, type PublicBlog } from "@/lib/profile";
 import type { LocationMatch } from "@/lib/locationSlugs";
@@ -180,6 +181,16 @@ export function LocationSite({
   const [selected, setSelected] = useState<LocationDoctor | null>(null);
   const [selectedHospital, setSelectedHospital] = useState<LocationHospital | null>(null);
   const [activeBlog, setActiveBlog] = useState<{ post: PublicBlog; doctor: LocationDoctor } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function scrollToSection(href: string) {
+    setMenuOpen(false);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+    });
+  }
 
   const primary = matches[0]!;
   const title = primary.thanaBn;
@@ -262,12 +273,51 @@ export function LocationSite({
         ]}
         navClassName="hidden min-[560px]:flex"
         actions={
-          <a
-            href={buildApexUrl("/apply/doctor", host)}
-            className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-sm font-bold text-white shadow hover:opacity-90 sm:px-4"
-          >
-            আপনি কি ডাক্তার?
-          </a>
+          <>
+            <a
+              href={buildApexUrl("/apply/doctor", host)}
+              className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-2.5 py-2 text-xs font-bold text-white shadow transition hover:opacity-90 active:scale-95 sm:px-4 sm:text-sm"
+            >
+              আপনি কি ডাক্তার?
+            </a>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="মেনু"
+              aria-expanded={menuOpen}
+              className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-slate-800 transition active:scale-95 min-[560px]:hidden"
+            >
+              {menuOpen ? "✕" : "☰"}
+            </button>
+          </>
+        }
+        mobilePanel={
+          <AnimatePresence initial={false}>
+            {menuOpen && (
+              <motion.nav
+                className="overflow-hidden border-t border-slate-200 bg-white px-5 min-[560px]:hidden"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                <div className="py-3">
+                  {[
+                    { href: "#departments", label: "বিভাগ" },
+                    { href: "#doctors", label: "ডাক্তার" },
+                    { href: "#hospitals", label: "হাসপাতাল" },
+                  ].map((n) => (
+                    <button
+                      key={n.href}
+                      onClick={() => scrollToSection(n.href)}
+                      className="block w-full border-b border-slate-50 py-2.5 text-left font-medium text-slate-700 last:border-0 hover:text-teal-700"
+                    >
+                      {n.label}
+                    </button>
+                  ))}
+                </div>
+              </motion.nav>
+            )}
+          </AnimatePresence>
         }
       />
 

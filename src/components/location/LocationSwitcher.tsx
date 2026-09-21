@@ -1,45 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { LocationPickerFields } from "@/components/location/LocationPickerFields";
+import { LocationPopup } from "@/components/location/LocationPopup";
 
 /**
- * Minimizable bottom-right widget inside location portals:
- * collapsed = small "📍 এলাকা বদলান" pill; expanded = the same picker
- * (GPS auto-detect + district → upazila, district alone = whole district).
+ * Fixed top-right location widget (desktop + mobile, same place).
+ * Just an eye-catching pill — tapping it opens the universal
+ * location popup in the middle of the screen.
+ * Wrapped in an animated multicolor border + breathing glow
+ * (`.loc-animated-frame` in globals.css) to attract attention.
  */
 export function LocationSwitcher({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-3 right-3 z-50 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-black text-white shadow-2xl ring-1 ring-white/20 hover:bg-slate-800 sm:bottom-6 sm:right-6"
-      >
-        📍 এলাকা বদলান
-      </button>
-    );
-  }
-
   return (
-    <div className="fixed bottom-3 right-3 z-50 w-[calc(100%-1.5rem)] max-w-sm rounded-3xl bg-slate-950 p-4 text-white shadow-2xl ring-1 ring-white/15 sm:bottom-6 sm:right-6 sm:p-5">
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-black">🩺 ডাক্তার কোথায় খুঁজছেন?</p>
-        <button
-          onClick={() => setOpen(false)}
-          aria-label="ছোট করুন"
-          className="rounded-lg px-2 py-0.5 text-white/60 hover:bg-white/10 hover:text-white"
-        >
-          ➖
-        </button>
+    <>
+      <div className="fixed right-3 top-[76px] z-50 sm:right-6 sm:top-[88px]">
+        <div className="loc-animated-frame rounded-full p-[2.5px]">
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="এলাকা বদলান"
+            className="loc-attention flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-100 via-yellow-50 to-emerald-100 px-3 py-2 text-xs font-black text-emerald-950 transition hover:brightness-105 active:scale-95 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
+          >
+            <span className="text-sm sm:text-lg">📍</span>
+            এলাকা বদলান
+          </button>
+        </div>
       </div>
-      <p className="mt-1 text-xs text-white/60">
-        Where are you looking for a doctor? অন্য এলাকা বাছুন।
-      </p>
-      <div className="mt-3">
-        <LocationPickerFields />
-      </div>
-    </div>
+      {open && <LocationPopup onClose={() => setOpen(false)} />}
+    </>
   );
 }

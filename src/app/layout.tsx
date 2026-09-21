@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono, Hind_Siliguri } from "next/font/google";
 import { StoreProvider } from "@/lib/store/StoreProvider";
+import { ScrollToTop } from "@/components/ui/ScrollToTop";
+import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,8 +23,12 @@ const hindSiliguri = Hind_Siliguri({
 });
 
 export const metadata: Metadata = {
-  title: "মিস্টার ডাক্তার — নিরাপদ লগইন",
-  description: "OTP + JWT কুকি লগইন, ভূমিকা ভিত্তিক ড্যাশবোর্ড — দেরি নয়, অপেক্ষা নয়",
+  title: {
+    default: "মিস্টার ডাক্তার — ডাক্তার, হাসপাতাল ও রোগীর মিলনস্থল",
+    template: "%s | মিস্টার ডাক্তার",
+  },
+  description:
+    "সারা বাংলাদেশে অনলাইনে ফ্রি ডাক্তারের সিরিয়াল, ডাক্তারদের জন্য ফ্রি চেম্বার সফটওয়্যার ও হাসপাতাল ড্যাশবোর্ড — ৬৪ জেলা, ৪৯৪+ থানা ও উপজেলা।",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -32,6 +39,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <StoreProvider>{children}</StoreProvider>
+        {/* Route-change progress bar + floating scroll-to-top on every page. */}
+        <Suspense fallback={null}>
+          <TopProgressBar />
+        </Suspense>
+        <ScrollToTop />
       </body>
     </html>
   );

@@ -23,12 +23,13 @@ const COLS = [
 
 export function HomeFooter() {
   return (
-    <footer className="border-t border-white/10 bg-slate-950 py-10">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 md:grid-cols-4">
+    <footer className="border-t border-amber-200/70 bg-white">
+      <div className="h-0.5 bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-300" />
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-4">
         <div className="md:col-span-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="মিস্টার ডাক্তার" className="h-10 w-auto object-contain" />
-          <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/55">
+          <img src="/logo-main.png" alt="মিস্টার ডাক্তার" className="h-12 w-auto object-contain" />
+          <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
             রোগীকে ডাক্তারের কাছে পৌঁছে দিই মুহূর্তেই। দেরি নয়, অপেক্ষা নয় —
             সময়মতো ভিজিট ও সেবা, সারা বাংলাদেশে।
           </p>
@@ -36,7 +37,7 @@ export function HomeFooter() {
             {["✓ যাচাইকৃত ডাক্তার", "⏱ সময়মতো সিরিয়াল", "💬 হোয়াটসঅ্যাপ সাপোর্ট"].map((t) => (
               <span
                 key={t}
-                className="rounded-full bg-white/5 px-3 py-1.5 text-xs font-bold text-white/70 ring-1 ring-white/10"
+                className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-emerald-900 ring-1 ring-amber-200"
               >
                 {t}
               </span>
@@ -45,13 +46,13 @@ export function HomeFooter() {
         </div>
         {COLS.map((c) => (
           <div key={c.title}>
-            <p className="text-sm font-black uppercase tracking-wider text-white/40">
+            <p className="text-sm font-black uppercase tracking-wider text-amber-600">
               {c.title}
             </p>
             <ul className="mt-3 space-y-2">
               {c.links.map((l) => (
                 <li key={l.label}>
-                  <Link href={l.href} className="text-sm font-bold text-white/70 transition hover:text-white">
+                  <Link href={l.href} className="text-sm font-bold text-slate-600 transition hover:text-emerald-800">
                     {l.label}
                   </Link>
                 </li>
@@ -60,7 +61,7 @@ export function HomeFooter() {
           </div>
         ))}
       </div>
-      <div className="mx-auto mt-8 max-w-6xl border-t border-white/10 px-4 pt-5 text-center text-xs text-white/40 sm:px-6">
+      <div className="mx-auto max-w-6xl border-t border-amber-100 px-4 py-5 text-center text-xs text-slate-400 sm:px-6">
         © {new Date().getFullYear()} মিস্টার ডাক্তার — সবার জন্য সময়মতো চিকিৎসা।
       </div>
     </footer>

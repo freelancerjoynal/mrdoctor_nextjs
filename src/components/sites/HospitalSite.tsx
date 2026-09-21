@@ -1,3 +1,7 @@
+ "use client";
+
+import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { PublicBlog, PublicHospital, PublicReview } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
 import { buildApexUrl } from "@/lib/portal";
@@ -23,7 +27,17 @@ export function HospitalSite({
   /** Request host — logo links to the apex main site (SSR-safe). */
   host?: string;
 }) {
-  // One entry per doctor (first chamber's fee info), chambers themselves hidden.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function scrollToSection(href: string) {
+    setMenuOpen(false);
+    // Let the dropdown close first, then smooth-scroll to the section.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+    });
+  }
   const seen = new Map<string, HospitalDoctorEntry>();
   for (const c of hospital.chambers) {
     if (!c.doctor || seen.has(c.doctor.username)) continue;
@@ -79,7 +93,7 @@ export function HospitalSite({
 
   const nav = [
     { href: "#doctors", label: "চিকিৎসক" },
-    { href: "#blog", label: "ব্লগ" },
+    ...(blogPosts.length > 0 ? [{ href: "#blog", label: "ব্লগ" }] : []),
     { href: "#testimonials", label: "মতামত" },
     { href: "#contact", label: "যোগাযোগ" },
   ];
@@ -130,19 +144,60 @@ export function HospitalSite({
           </span>
         }
         nav={nav}
-        navClassName="hidden md:flex"
+        navClassName="hidden lg:flex"
         actions={
-          <a
-            href="#doctors"
-            className="shrink-0 rounded-full bg-blue-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-800 sm:px-5"
-          >
-            🩺 ডাক্তার রিজার্ভ করুন
-          </a>
+          <>
+            <button
+              onClick={() => scrollToSection("#doctors")}
+              className="shrink-0 rounded-full bg-blue-700 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-800 active:scale-95 sm:px-5 sm:py-2.5 sm:text-sm"
+            >
+              🩺 ডাক্তার দেখুন
+            </button>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="মেনু"
+              aria-expanded={menuOpen}
+              className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-slate-800 transition active:scale-95 lg:hidden"
+            >
+              {menuOpen ? "✕" : "☰"}
+            </button>
+          </>
+        }
+        mobilePanel={
+          <AnimatePresence initial={false}>
+            {menuOpen && (
+              <motion.nav
+                className="overflow-hidden border-t border-slate-200 bg-white px-5 lg:hidden"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                <div className="py-3">
+                  {nav.map((n) => (
+                    <button
+                      key={n.href}
+                      onClick={() => scrollToSection(n.href)}
+                      className="block w-full border-b border-slate-50 py-2.5 text-left font-medium text-slate-700 last:border-0 hover:text-blue-700"
+                    >
+                      {n.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => scrollToSection("#doctors")}
+                    className="mt-2 block w-full rounded-full bg-blue-700 px-5 py-2.5 text-center text-sm font-bold text-white"
+                  >
+                    🩺 ডাক্তার রিজার্ভ করুন
+                  </button>
+                </div>
+              </motion.nav>
+            )}
+          </AnimatePresence>
         }
       />
 
       {/* ---------- Hero ---------- */}
-      <section id="top" className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white">
+      <section id="top" className="relative scroll-mt-24 overflow-hidden bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{

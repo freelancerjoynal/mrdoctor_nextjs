@@ -48,6 +48,16 @@ export function DoctorSite({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
+  function scrollToSection(href: string) {
+    setMenuOpen(false);
+    // Let the dropdown close first, then smooth-scroll to the section.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+    });
+  }
+
   const name = doctor?.name || doctorDemo.name;
   const speciality = doctor?.speciality || doctorDemo.speciality;
   const degree = doctor?.degree || doctorDemo.degree;
@@ -271,7 +281,8 @@ export function DoctorSite({
             <button
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="মেনু"
-              className="shrink-0 rounded-lg border border-emerald-200 px-3 py-2 text-emerald-900 lg:hidden"
+              aria-expanded={menuOpen}
+              className="shrink-0 rounded-lg border border-emerald-200 px-3 py-2 text-emerald-900 transition active:scale-95 lg:hidden"
             >
               {menuOpen ? "✕" : "☰"}
             </button>
@@ -289,14 +300,13 @@ export function DoctorSite({
               >
                 <div className="py-3">
                   {nav.map((n) => (
-                    <a
+                    <button
                       key={n.href}
-                      href={n.href}
-                      onClick={() => setMenuOpen(false)}
-                      className="block border-b border-slate-50 py-2.5 font-medium text-slate-700 last:border-0 hover:text-emerald-700"
+                      onClick={() => scrollToSection(n.href)}
+                      className="block w-full border-b border-slate-50 py-2.5 text-left font-medium text-slate-700 last:border-0 hover:text-emerald-700"
                     >
                       {n.label}
-                    </a>
+                    </button>
                   ))}
                   <a
                     href={serialHref}

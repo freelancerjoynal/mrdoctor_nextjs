@@ -9,8 +9,10 @@ import { goToLocation, reverseGeocode, type GeoHit } from "@/lib/locationClient"
  * GPS auto-detect (with one-tap suggestion) + district → upazila selects
  * (district alone = whole-district portal, thana skipped).
  * Used by the homepage LocationPrompt and the portal LocationSwitcher.
+ * `tone="dark"` (default) for dark cards, `tone="light"` for white cards.
  */
-export function LocationPickerFields() {
+export function LocationPickerFields({ tone = "dark" }: { tone?: "dark" | "light" }) {
+  const light = tone === "light";
   const [districtEn, setDistrictEn] = useState("");
   const [upazilaEn, setUpazilaEn] = useState("");
   const [gpsState, setGpsState] = useState<"idle" | "locating" | "failed">("idle");
@@ -87,13 +89,17 @@ export function LocationPickerFields() {
       {suggestion ? (
         <button
           onClick={() => goToLocation(suggestion.slug, false)}
-          className="mt-2 w-full rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-900 hover:bg-emerald-100"
+          className={
+            light
+              ? "mt-2 w-full rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-black text-emerald-900 ring-1 ring-emerald-200 hover:bg-emerald-100"
+              : "mt-2 w-full rounded-xl bg-white px-4 py-2.5 text-sm font-black text-slate-900 hover:bg-emerald-100"
+          }
         >
           ✅ {suggestion.slug} পোর্টালে যান →
         </button>
       ) : null}
       {gpsState === "failed" ? (
-        <p className="mt-2 text-xs font-bold text-amber-300">
+        <p className={`mt-2 text-xs font-bold ${light ? "text-amber-600" : "text-amber-300"}`}>
           GPS থেকে এলাকা চেনা যায়নি — নিচে থেকে বেছে নিন।
         </p>
       ) : null}
@@ -102,7 +108,11 @@ export function LocationPickerFields() {
         <select
           value={districtEn}
           onChange={(e) => pickDistrict(e.target.value)}
-          className="rounded-xl bg-white/10 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/15 focus:outline-none"
+          className={
+            light
+              ? "rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 ring-1 ring-slate-200 focus:outline-none"
+              : "rounded-xl bg-white/10 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/15 focus:outline-none"
+          }
         >
           <option value="">জেলা…*</option>
           {districts.map((d) => (
@@ -115,7 +125,11 @@ export function LocationPickerFields() {
           value={upazilaEn}
           onChange={(e) => setUpazilaEn(e.target.value)}
           disabled={!districtEn}
-          className="rounded-xl bg-white/10 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/15 focus:outline-none disabled:opacity-50"
+          className={
+            light
+              ? "rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 ring-1 ring-slate-200 focus:outline-none disabled:opacity-50"
+              : "rounded-xl bg-white/10 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/15 focus:outline-none disabled:opacity-50"
+          }
         >
           <option value="">উপজেলা (ঐচ্ছিক)</option>
           {upazilas.map((u) => (
@@ -128,7 +142,11 @@ export function LocationPickerFields() {
       <button
         onClick={confirmManual}
         disabled={!districtEn}
-        className="mt-2 w-full rounded-xl bg-white/10 px-4 py-2.5 text-sm font-black text-white ring-1 ring-white/15 hover:bg-white/20 disabled:opacity-50"
+        className={
+          light
+            ? "mt-2 w-full rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-800 disabled:opacity-50"
+            : "mt-2 w-full rounded-xl bg-white/10 px-4 py-2.5 text-sm font-black text-white ring-1 ring-white/15 hover:bg-white/20 disabled:opacity-50"
+        }
       >
         {upazilaEn ? "থানা পোর্টালে যান →" : "সদর থানার পোর্টালে যান →"}
       </button>

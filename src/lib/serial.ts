@@ -1,12 +1,20 @@
 /**
  * Serial (appointment) deep-link builder.
- * Pattern: `{base}/{username}` → e.g. https://mrdoctor.mdjoynal.com/d/dr-nil-072
- * The backend `/d/:username` route resolves the doctor and
- * redirects into the WhatsApp serial flow.
+ * Canonical pattern: `https://mrdoctor.com.bd/d/{username}` → WhatsApp serial flow.
+ * The Next route `/d/:username` resolves the doctor/hospital and
+ * redirects into the WhatsApp serial flow (backend `/d/:username` kept
+ * for backward compatibility).
+ * `baseUrl` comes from WA_BOT_URL env; defaults to the apex short link.
  */
 export function buildSerialUrl(baseUrl: string, username: string): string {
-  const base = (baseUrl || "https://mrdoctor.mdjoynal.com/d/").replace(/\/+$/, "");
+  const fallback = "https://mrdoctor.com.bd/d/";
+  const base = (baseUrl || fallback).replace(/\/+$/, "");
   return `${base}/${encodeURIComponent(username.trim())}`;
+}
+
+/** Apex-relative short link — always `/d/<username>` on the main site. */
+export function buildSerialPath(username: string): string {
+  return `/d/${encodeURIComponent(username.trim())}`;
 }
 
 /**

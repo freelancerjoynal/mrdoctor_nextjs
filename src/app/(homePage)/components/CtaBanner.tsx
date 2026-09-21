@@ -7,10 +7,11 @@ export function CtaBanner() {
         <div className="absolute -left-10 -top-10 h-48 w-48 rounded-full bg-white/15 blur-2xl" />
         <div className="absolute -bottom-12 -right-8 h-56 w-56 rounded-full bg-black/15 blur-2xl" />
         <h2 className="relative text-2xl font-black sm:text-3xl">
-          অসুস্থতায় অপেক্ষা কেন?
+          ডাক্তার, হাসপাতাল ও রোগী — সবাই যুক্ত হোন
         </h2>
         <p className="relative mx-auto mt-2 max-w-lg text-sm text-white/85 sm:text-base">
-          ডাক্তার বা হাসপাতাল হিসেবে আবেদন করুন — অনুমোদনের পর আপনার পোর্টাল চালু হবে।
+          রোগী হলে এলাকা খুঁজে ফ্রি সিরিয়াল নিন। ডাক্তার বা হাসপাতাল হলে আবেদন
+          করুন — অনুমোদনের পর ফ্রি সফটওয়্যারসহ আপনার পোর্টাল চালু হবে।
         </p>
         <div className="relative mt-5 flex flex-wrap justify-center gap-3">
           <Link
