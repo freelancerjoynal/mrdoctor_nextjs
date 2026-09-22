@@ -54,7 +54,7 @@ export function OtpForm({ email }: { email: string }) {
             {loading ? "যাচাই হচ্ছে…" : "যাচাই করে ড্যাশবোর্ডে যান"}
           </button>
           <p className="text-center text-xs text-slate-400">
-            ইনবক্স / স্প্যাম দেখুন — OTP ১০ মিনিটে মেয়াদ শেষ হয়।
+            ইনবক্স / স্প্যাম / SMS দেখুন — OTP ১০ মিনিটে মেয়াদ শেষ হয়।
           </p>
         </form>
       </Card>

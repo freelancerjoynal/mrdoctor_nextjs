@@ -8,15 +8,15 @@ interface CreditBalance {
   ownerType: "DOCTOR" | "HOSPITAL";
   ownerName: string;
   balance: number;
-  dueLimit: number;
   bookableLeft: number;
   exhausted: boolean;
 }
 
 /**
  * Credit wallet pill for doctor / hospital / staff dashboards.
- * Everyone sees their owner's balance: 🪙 balance + how many bookings left.
- * Red + "contact support" when balance AND due are both finished.
+ * Everyone sees their owner's balance: 🪙 balance + how many offline
+ * bookings are left (online bookings are free). Red + "contact support"
+ * when the balance hits zero.
  * `tone="dark"` for gradient heroes, `"light"` for the white topbar.
  */
 export function CreditBalanceBadge({ tone = "dark" }: { tone?: "dark" | "light" }) {
@@ -62,11 +62,12 @@ export function CreditBalanceBadge({ tone = "dark" }: { tone?: "dark" | "light" 
           due: "bg-amber-400/20 text-amber-100 ring-amber-200/50",
           ok: "bg-white/10 text-white ring-white/20",
         };
-  const toneClass = data.exhausted ? toneMap.exhausted : data.balance < 0 ? toneMap.due : toneMap.ok;
+  // No due system: amber while low (≤10 left), red at zero.
+  const toneClass = data.exhausted ? toneMap.exhausted : data.bookableLeft <= 10 ? toneMap.due : toneMap.ok;
 
   return (
     <span
-      title={`${data.ownerName} · বাকিতে ${toBn(data.dueLimit)} ক্রেডিট পর্যন্ত বুকিং চালু থাকবে`}
+      title={`${data.ownerName} · প্রতি অফলাইন বুকিংয়ে ১ ক্রেডিট কাটবে · অনলাইন বুকিং ফ্রি`}
       className={`inline-flex w-fit flex-wrap items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ring-1 backdrop-blur ${toneClass}`}
     >
       🪙 ক্রেডিট {toBn(data.balance)}

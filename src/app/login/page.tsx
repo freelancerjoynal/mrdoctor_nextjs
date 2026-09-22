@@ -6,7 +6,7 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="আবার স্বাগতম"
-      subtitle="লগইন করুন — সম্পূর্ণ করতে আপনার ইমেইলে একটি OTP পাঠাব।"
+      subtitle="লগইন করুন — ইমেইল বা মোবাইল নম্বর দিন, OTP ইমেইল ও SMS-এ পাঠাব।"
       footer={
         <>
           ডাক্তার / হাসপাতাল?{" "}

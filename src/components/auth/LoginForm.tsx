@@ -22,24 +22,40 @@ export function LoginForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: fd.get("email"),
+        identifier: fd.get("identifier"),
         password: fd.get("password"),
       }),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      email?: string;
+      emailSent?: boolean;
+      smsSent?: boolean;
+    };
     setLoading(false);
     if (!res.ok) {
       setError(data.error ?? "লগইন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।");
       return;
     }
-    router.push(`/verify-otp?email=${encodeURIComponent(String(fd.get("email")))}&purpose=login`);
-  }
+    const params = new URLSearchParams({
+      email: data.email ?? String(fd.get("identifier")),
+      purpose: "login",
+      em: data.emailSent === false ? "0" : "1",
+      sms: data.smsSent ? "1" : "0",
+    });
+    router.push(`/verify-otp?${params.toString()}`);
+  };
 
   return (
     <FadeIn>
       <Card>
         <form onSubmit={onSubmit} className="space-y-4">
-          <TextInput label="ইমেইল" name="email" type="email" required placeholder="you@clinic.com" />
+          <TextInput
+            label="ইমেইল বা মোবাইল নম্বর"
+            name="identifier"
+            required
+            placeholder="you@clinic.com বা 01XXXXXXXXX"
+          />
           <div>
             <TextInput label="পাসওয়ার্ড" name="password" type="password" required placeholder="••••••••" />
             <div className="mt-2 text-right">

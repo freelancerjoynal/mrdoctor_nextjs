@@ -7,6 +7,7 @@ interface StaffRow {
   id: string;
   email: string;
   name?: string | null;
+  phone?: string | null;
   role: string;
   isVerified: boolean;
   canApprove?: boolean | null;
@@ -36,6 +37,8 @@ export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
   const [rows, setRows] = useState<StaffRow[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Mobile is REQUIRED — login details + OTP go here by SMS too.
+  const [phone, setPhone] = useState("");
   // Manage-approve option: ON = staff can only collect + update,
   // approval (serve/done) stays with the doctor.
   const [restrictApprove, setRestrictApprove] = useState(false);
@@ -93,6 +96,10 @@ export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
       setError("সঠিক ইমেইল ঠিকানা দিন।");
       return;
     }
+    if (!/^01\d{9}$/.test(phone.replace(/[^\d]/g, ""))) {
+      setError("সঠিক মোবাইল নম্বর দিন (01XXXXXXXXX) — লগইন তথ্য SMS-এ যাবে।");
+      return;
+    }
     setSending(true);
     setError("");
     setNotice("");
@@ -103,11 +110,12 @@ export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
         body: JSON.stringify({
           name: trimmedName,
           email: email.trim(),
+          phone: phone.replace(/[^\d]/g, ""),
           canApprove: !restrictApprove,
           canManageChambers: allowChambers,
         }),
       })) as {
-        data?: { staff: StaffRow; tempPassword: string; emailSent: boolean };
+        data?: { staff: StaffRow; tempPassword: string; emailSent: boolean; smsSent?: boolean };
         message?: string;
       };
       setNotice(data?.message || "স্টাফ যোগ হয়েছে।");
@@ -116,6 +124,7 @@ export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
       }
       setName("");
       setEmail("");
+      setPhone("");
       setRestrictApprove(false);
       setAllowChambers(false);
       await refresh(true);
@@ -168,8 +177,8 @@ export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
         <p className="text-lg font-black text-slate-900">নতুন স্টাফ যোগ করুন</p>
         <p className="mt-1 text-sm text-slate-500">
           {isHospital
-            ? "নাম ও ইমেইল দিলেই হাসপাতাল-স্টাফ অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় পাঠিয়ে দেওয়া হবে। স্টাফ আজ উপস্থিত যেকোনো ডাক্তারের বুকিং নিতে পারবে (সেবা সম্পন্ন শুধু ডাক্তার করবেন)।"
-            : "নাম ও ইমেইল দিলেই অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় পাঠিয়ে দেওয়া হবে।"}
+            ? "নাম, ইমেইল ও মোবাইল দিলেই হাসপাতাল-স্টাফ অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় ও মোবাইলে SMS-এ পাঠিয়ে দেওয়া হবে। স্টাফ আজ উপস্থিত যেকোনো ডাক্তারের বুকিং নিতে পারবে (সেবা সম্পন্ন শুধু ডাক্তার করবেন)।"
+            : "নাম, ইমেইল ও মোবাইল দিলেই অ্যাকাউন্ট তৈরি হবে — পাসওয়ার্ড ওই ঠিকানায় ও মোবাইলে SMS-এ পাঠিয়ে দেওয়া হবে।"}
         </p>
         <form onSubmit={invite} className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <input
@@ -185,6 +194,15 @@ export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
             placeholder="staff@example.com"
             inputMode="email"
             maxLength={160}
+            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
+          />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="মোবাইল * (01XXXXXXXXX)"
+            inputMode="tel"
+            maxLength={14}
+            required
             className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none"
           />
           <button
@@ -300,6 +318,7 @@ export function StaffPanel({ isHospital = false }: { isHospital?: boolean }) {
                     </p>
                     <p className="truncate text-xs text-slate-400">
                       {s.name?.trim() ? `${s.email} · ` : ""}
+                      {s.phone ? `📱 ${s.phone} · ` : ""}
                       {s.isVerified ? "✓ সক্রিয়" : "অপেক্ষমাণ"} · {new Date(s.createdAt).toLocaleDateString("bn-BD")}
                     </p>
                     <p className="mt-1.5 flex flex-wrap gap-1.5">

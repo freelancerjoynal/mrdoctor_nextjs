@@ -19,7 +19,6 @@ interface LedgerRow {
 interface CreditView {
   ownerName: string;
   balance: number;
-  dueLimit: number;
   bookableLeft: number;
   exhausted: boolean;
   ledger: LedgerRow[];
@@ -91,7 +90,6 @@ export function CreditTopupCard({ ownerType, ownerId }: { ownerType: CreditOwner
       setAmount("100");
       setNote("");
       setMsg(`✅ ${toBn(n)} ক্রেডিট যোগ হয়েছে।`);
-      void load();
     } catch (err: unknown) {
       setMsg(err instanceof Error ? err.message : "টপ-আপ করা যায়নি।");
     } finally {
@@ -106,7 +104,7 @@ export function CreditTopupCard({ ownerType, ownerId }: { ownerType: CreditOwner
         {view && (
           <p
             className={`rounded-full px-3 py-1 text-sm font-black tabular-nums ${
-              view.exhausted ? "bg-red-100 text-red-700" : view.balance < 0 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700"
+              view.exhausted ? "bg-red-100 text-red-700" : view.bookableLeft <= 10 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700"
             }`}
           >
             ব্যালেন্স {toBn(view.balance)}
@@ -118,7 +116,7 @@ export function CreditTopupCard({ ownerType, ownerId }: { ownerType: CreditOwner
       {!view && !error && <div className="mt-3 h-16 animate-pulse rounded-xl bg-slate-50" />}
       {view && (
         <p className="mt-1 text-xs font-bold text-slate-500">
-          {view.ownerName} · বাকিতে {toBn(view.dueLimit)} ক্রেডিট পর্যন্ত বুকিং চালু থাকবে
+          {view.ownerName} · প্রতি অফলাইন বুকিংয়ে ১ ক্রেডিট কাটবে · অনলাইন বুকিং ফ্রি
         </p>
       )}
 
@@ -148,9 +146,9 @@ export function CreditTopupCard({ ownerType, ownerId }: { ownerType: CreditOwner
       </div>
       {msg && <p className="mt-2 text-xs font-bold text-slate-600">{msg}</p>}
 
-      {view && view.ledger.length > 0 && (
+      {view && (view.ledger ?? []).length > 0 && (
         <ul className="mt-3 max-h-64 space-y-1.5 overflow-y-auto">
-          {view.ledger.slice(0, 20).map((r) => (
+          {(view.ledger ?? []).slice(0, 20).map((r) => (
             <li
               key={r.id}
               className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700"
