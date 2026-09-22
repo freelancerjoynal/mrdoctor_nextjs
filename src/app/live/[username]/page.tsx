@@ -25,7 +25,7 @@ export default async function LiveSerialPage({
   const { username } = await params;
   const initial = await getInitialBoard(username);
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-emerald-950 to-slate-950">
+    <div className="h-dvh w-screen overflow-hidden bg-gradient-to-b from-slate-950 via-emerald-950 to-slate-950">
       <LiveBoard username={username} initial={initial} />
     </div>
   );

@@ -152,13 +152,29 @@ html {
   animation: header-enter 0.45s ease-out;
 }
 
+/* Live board notice marquee — seamless leftward scroll (content duplicated
+   in JSX, track slides exactly one half). Pure CSS, no <marquee> tag. */
+@keyframes notice-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.notice-marquee-track {
+  animation: notice-marquee 600s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .topbar-anim,
   .loc-animated-frame,
   .loc-modal-pop,
   .loc-backdrop,
   .loc-attention,
-  .header-enter {
+  .header-enter,
+  .notice-marquee-track {
     animation: none;
   }
 }

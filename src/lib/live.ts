@@ -10,6 +10,12 @@ export interface LiveEntry {
   skippedAt?: string | null;
 }
 
+export interface LiveBreak {
+  reason: string;
+  /** ISO return time — null means open-ended break. */
+  endsAt: string | null;
+}
+
 export interface LiveSnapshot {
   live: boolean;
   doctor: {
@@ -26,6 +32,8 @@ export interface LiveSnapshot {
   waitingCount: number;
   totalToday: number;
   liveUpdatedAt?: string | null;
+  /** Doctor break ("বিরতি") — reason + return time, null when not on break. */
+  break: LiveBreak | null;
 }
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";

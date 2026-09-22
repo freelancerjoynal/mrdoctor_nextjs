@@ -27,12 +27,36 @@ interface LiveMissed {
   skippedAt?: string | null;
 }
 
+/** Doctor break ("বিরতি") as returned by the live API. */
+interface LiveBreakState {
+  reason: string;
+  endsAt: string | null;
+}
+
 /** ms left on the 20-minute punishment clock (null = no recorded skip → recallable now). */
 function cooldownRemainingMs(skippedAt?: string | null): number | null {
   if (!skippedAt) return null;
   const t = new Date(skippedAt).getTime();
   if (Number.isNaN(t)) return null;
   return Math.max(0, RECALL_COOLDOWN_MS - (Date.now() - t));
+}
+
+/** "৩:৪৫" style back-by time for a break ISO timestamp ("" when open-ended). */
+function breakBackBn(endsAt?: string | null): string {
+  if (!endsAt) return "";
+  const d = new Date(endsAt);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${toBn(p(d.getHours()))}:${toBn(p(d.getMinutes()))}`;
+}
+
+/** Active break or null — an expired return time reads as "no break". */
+function activeBreak(
+  live: { live: boolean; break: LiveBreakState | null } | null,
+): LiveBreakState | null {
+  if (!live?.live || !live.break) return null;
+  if (live.break.endsAt && new Date(live.break.endsAt).getTime() <= Date.now()) return null;
+  return live.break;
 }
 
 /** "৫ মিনিট আগে মিস" style label for a skip timestamp. */
@@ -416,8 +440,23 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     missed: LiveMissed[];
     upcoming: { serial: number; patientName: string }[];
     waitingCount: number;
+    break: LiveBreakState | null;
   } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
+  // Break form (reason + minutes) shown under the live buttons.
+  const [breakOpen, setBreakOpen] = useState(false);
+  const [breakReason, setBreakReason] = useState("");
+  const [breakMins, setBreakMins] = useState("10");
+
+  // Close the break popup on Escape.
+  useEffect(() => {
+    if (!breakOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setBreakOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [breakOpen]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // Upfront row actions: confirm popup + edit popup.
@@ -449,6 +488,10 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         : rows,
     [rows, mainTab, live, missedSerials],
   );
+
+  // Expired breaks read as "no break" (the server filters too; this covers
+  // the gap between pushes so a lapsed break never sticks on screen).
+  const liveBreakActive = activeBreak(live);
 
   /** Bengali digits → latin so phone search works in either script. */
   function normalizeDigits(s: string): string {
@@ -779,10 +822,11 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           missed?: LiveMissed[];
           upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
+          break?: LiveBreakState | null;
         };
       } | null;
       if (res.ok && json?.data) {
-        setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
+        setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [], break: json.data.break ?? null });
       }
     } catch {
       /* live badge stays hidden until it loads */
@@ -790,6 +834,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount catch-up fetch syncing external live snapshot
     void refreshLive();
   }, [refreshLive]);
 
@@ -808,12 +853,85 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           missed?: LiveMissed[];
           upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
+          break?: LiveBreakState | null;
         };
         error?: string;
       } | null;
       if (!res.ok) throw new Error(json?.error || "লাইভ চালু/বন্ধ করা যায়নি।");
-      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [], break: json.data.break ?? null });
       setActionMsg(json?.data?.live ? "🔴 লাইভ সিরিয়াল চালু হয়েছে — বোর্ডে দেখুন।" : "⏹️ লাইভ সিরিয়াল বন্ধ হয়েছে।");
+    } catch (err: unknown) {
+      setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
+  /** Start a break ("বিরতি") — reason + minutes show on the public board. */
+  const startBreak = async () => {
+    if (liveBusy || !live?.live) return;
+    const minutes = Number(breakMins);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 180) {
+      setActionErr("বিরতির সময় ১–১৮০ মিনিটের মধ্যে দিন।");
+      return;
+    }
+    setLiveBusy(true);
+    setActionErr("");
+    try {
+      const res = await apiFetch("/api/backend/api/users/serial-live/break", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: breakReason.trim(), minutes }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        data?: {
+          live: boolean;
+          current: { serial: number; patientName: string } | null;
+          missed?: LiveMissed[];
+          upcoming?: { serial: number; patientName: string }[];
+          waitingCount: number;
+          break?: LiveBreakState | null;
+        };
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(json?.error || "বিরতি চালু করা যায়নি।");
+      if (json?.data)
+        setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [], break: json.data.break ?? null });
+      setBreakOpen(false);
+      setBreakReason("");
+      setActionMsg(`⏸️ ${toBn(minutes)} মিনিটের বিরতি চালু হয়েছে — লাইভ বোর্ডে দেখা যাচ্ছে।`);
+    } catch (err: unknown) {
+      setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
+  /** End the break early — board and waiting flow resume. */
+  const endBreak = async () => {
+    if (liveBusy) return;
+    setLiveBusy(true);
+    setActionErr("");
+    try {
+      const res = await apiFetch("/api/backend/api/users/serial-live/break/end", {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => null)) as {
+        data?: {
+          live: boolean;
+          current: { serial: number; patientName: string } | null;
+          missed?: LiveMissed[];
+          upcoming?: { serial: number; patientName: string }[];
+          waitingCount: number;
+          break?: LiveBreakState | null;
+        };
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(json?.error || "বিরতি শেষ করা যায়নি।");
+      if (json?.data)
+        setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [], break: json.data.break ?? null });
+      setActionMsg("▶️ বিরতি শেষ হয়েছে — বোর্ড আবার চলছে।");
+      setBreakOpen(false);
     } catch (err: unknown) {
       setActionErr(err instanceof Error ? err.message : "অনুরোধ ব্যর্থ হয়েছে।");
     } finally {
@@ -839,12 +957,13 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           missed?: LiveMissed[];
           upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
+          break?: LiveBreakState | null;
           skipped?: { serial: number; patientName: string } | null;
         };
         error?: string;
       } | null;
       if (!res.ok) throw new Error(json?.error || "স্কিপ করা যায়নি।");
-      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [], break: json.data.break ?? null });
       const skippedName = json?.data?.skipped?.patientName?.trim() || null;
       const skippedNo = json?.data?.skipped?.serial ?? skippedSerial;
       setActionMsg(
@@ -878,12 +997,13 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           missed?: LiveMissed[];
           upcoming?: { serial: number; patientName: string }[];
           waitingCount: number;
+          break?: LiveBreakState | null;
           recalled?: { serial: number; patientName: string } | null;
         };
         error?: string;
       } | null;
       if (!res.ok) throw new Error(json?.error || "ফিরিয়ে আনা যায়নি।");
-      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [] });
+      if (json?.data) setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [], break: json.data.break ?? null });
       const backName = json?.data?.recalled?.patientName?.trim() || "রোগী";
       const backNo = json?.data?.recalled?.serial ?? serial;
       setActionMsg(`✅ ${backName} (সিরিয়াল ${toBn(backNo)}) বোর্ডে ফিরেছেন।`);
@@ -1159,7 +1279,116 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                   📺 লাইভ বোর্ড দেখুন
                 </a>
               )}
+              {live?.live && !isHospitalDesk && (
+                <button
+                  onClick={() => setBreakOpen(true)}
+                  disabled={liveBusy}
+                  className={`rounded-xl px-4 py-2 text-sm font-black text-white shadow transition hover:-translate-y-0.5 disabled:opacity-60 ${
+                    liveBreakActive
+                      ? "animate-pulse bg-amber-500 hover:bg-amber-600"
+                      : "bg-amber-500 hover:bg-amber-600"
+                  }`}
+                >
+                  {liveBreakActive ? "⏸️ বিরতি চলছে" : "⏸️ বিরতি"}
+                </button>
+              )}
             </div>
+            {/* Break popup — start form, or live status + stop button while on break */}
+            {breakOpen && live?.live && !isHospitalDesk && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="বিরতি"
+              >
+                <button
+                  type="button"
+                  aria-label="বন্ধ করুন"
+                  onClick={() => setBreakOpen(false)}
+                  className="loc-backdrop absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm"
+                />
+                <div className="loc-modal-pop relative w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-base font-black text-slate-900">
+                      {liveBreakActive ? "⏸️ বিরতি চলছে" : "⏸️ বিরতির কারণ ও সময় দিন"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setBreakOpen(false)}
+                      aria-label="বন্ধ করুন"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-sm font-black text-slate-600 transition hover:bg-slate-200"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {liveBreakActive ? (
+                    <div className="mt-3 rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200">
+                      <p className="text-sm font-black text-slate-900">{liveBreakActive.reason}</p>
+                      <p className="mt-1 text-sm font-bold text-slate-600">
+                        {breakBackBn(liveBreakActive.endsAt)
+                          ? `ফিরবেন ${breakBackBn(liveBreakActive.endsAt)} — বোর্ডে দেখা যাচ্ছে`
+                          : "বোর্ডে দেখা যাচ্ছে"}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void endBreak()}
+                        disabled={liveBusy}
+                        className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow transition hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {liveBusy ? "…" : "▶️ বিরতি শেষ করুন"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3">
+                      <label className="block text-xs font-black text-slate-500" htmlFor="break-reason">
+                        কারণ
+                      </label>
+                      <input
+                        id="break-reason"
+                        autoFocus
+                        value={breakReason}
+                        onChange={(e) => setBreakReason(e.target.value)}
+                        placeholder="যেমন: নামাজের বিরতি"
+                        maxLength={140}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                      <label className="mt-3 block text-xs font-black text-slate-500" htmlFor="break-mins">
+                        সময়
+                      </label>
+                      <select
+                        id="break-mins"
+                        value={breakMins}
+                        onChange={(e) => setBreakMins(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        {["5", "10", "15", "20", "30", "45", "60"].map((m) => (
+                          <option key={m} value={m}>
+                            {toBn(m)} মিনিট
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => void startBreak()}
+                        disabled={liveBusy}
+                        className="mt-4 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-black text-white shadow transition hover:bg-amber-600 disabled:opacity-60"
+                      >
+                        {liveBusy ? "…" : "✅ বিরতি চালু করুন"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {live?.live && liveBreakActive && (
+              <p
+                suppressHydrationWarning
+                className="mt-2 rounded-xl bg-amber-400/20 px-3 py-2 text-sm font-black text-amber-200 ring-1 ring-amber-300/40"
+              >
+                ⏸️ বিরতি চলছে — {liveBreakActive.reason}
+                {breakBackBn(liveBreakActive.endsAt) ? ` · ফিরবেন ${breakBackBn(liveBreakActive.endsAt)}` : ""}
+              </p>
+            )}
             {live?.live && (
               <p className="mt-2 flex items-center gap-2 text-sm font-bold text-white">
                 <span className="relative flex h-2.5 w-2.5">
@@ -1170,6 +1399,7 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                 {live.current
                   ? ` · সিরিয়াল ${toBn(live.current.serial)} — ${live.current.patientName} · অপেক্ষায় ${toBn(live.waitingCount)} জন`
                   : ` · অপেক্ষায় ${toBn(live.waitingCount)} জন`}
+                {liveBreakActive ? ` · ⏸️ বিরতি — ${liveBreakActive.reason}` : ""}
               </p>
             )}
             {/* Live waiting list — same board data as the TV (auto-includes missed at the tail) */}

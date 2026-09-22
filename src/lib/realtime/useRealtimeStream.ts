@@ -38,9 +38,15 @@ interface UseRealtimeStreamOptions {
  */
 export function useRealtimeStream({ enabled = true, url, probeUrl, onEvent }: UseRealtimeStreamOptions) {
   const handlerRef = useRef(onEvent);
-  handlerRef.current = onEvent;
   const probeRef = useRef(probeUrl);
-  probeRef.current = probeUrl;
+  // Latest callbacks for the long-lived EventSource (synced in effects —
+  // refs must not be written during render).
+  useEffect(() => {
+    handlerRef.current = onEvent;
+  }, [onEvent]);
+  useEffect(() => {
+    probeRef.current = probeUrl;
+  }, [probeUrl]);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
@@ -50,9 +56,13 @@ export function useRealtimeStream({ enabled = true, url, probeUrl, onEvent }: Us
     let windowStart = 0;
 
     const open = () => {
-      if (cancelled || document.hidden) return;
+      if (cancelled) return;
       es?.close();
       es = new EventSource(url);
+      // Catch up on anything pushed while we were away (or before SSR
+      // HTML was generated) — without this the board can sit stale until
+      // the NEXT push arrives.
+      handlerRef.current(["appointments", "live"]);
       es.onmessage = (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data) as RealtimeFrame;

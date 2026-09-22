@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
-import { apiFetch } from "@/lib/auth/apiFetch";
 import { toBn } from "@/lib/bn";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
+import { getRootDomain } from "@/lib/subdomain";
+import { announceBreak, useLiveAnnounce } from "@/lib/announce";
 import { useRealtimeStream } from "@/lib/realtime/useRealtimeStream";
 import type { LiveSnapshot } from "@/lib/live";
 
@@ -16,6 +18,7 @@ import type { LiveSnapshot } from "@/lib/live";
 function useClock(): { now: Date | null; time: string; tick: number } {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe client clock start (null on server/first paint)
     setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
@@ -104,19 +107,160 @@ function AnalogClock({ now }: { now: Date | null }) {
  * gold clock + upcoming list, hospital lower-third | doctor photo +
  * booking QR + powered-by.
  */
+
+/** Design resolution of the board. The stage is laid out once at this
+ * size, then uniformly scaled to fit any screen — same ratio everywhere,
+ * header/footer shrink automatically, never any scroll or zoom. */
+const STAGE_W = 1920;
+const STAGE_H = 1080;
+
+/** Scrolling notice-board items: patience verse, emergency rule, 100 health tips. */
+const NOTICES: ReactNode[] = [
+  <>
+    🙏 অপেক্ষা করুন, হুড়াহুড়ি করবেন না ·{" "}
+    <span dir="rtl" lang="ar">
+      «وَبَشِّرِ الصَّابِرِينَ»
+    </span>{" "}
+    — “ধৈর্যশীলদের সুসংবাদ দিন” (২:১৫৫)
+  </>,
+  "🚨 জরুরি রোগী চেম্বারে দেখা হয় না — দয়া করে নিকটস্থ হাসপাতালে যান · Emergency patients are not allowed in the chamber, please go to the nearest hospital",
+  "💧 প্রতিদিন ৮–১০ গ্লাস বিশুদ্ধ পানি পান করুন",
+  "🥤 কোমল পানীয়ের বদলে ডাবের পানি খান",
+  "🚰 বাইরের খোলা পানি পান করবেন না",
+  "🍋 গরমে লেবু-পানি শরীর ঠান্ডা রাখে",
+  "☕ অতিরিক্ত চা-কফি পানিশূন্যতা বাড়ায়",
+  "🏃 ব্যায়ামের আগে ও পরে পানি পান করুন",
+  "🌙 ঘুম থেকে উঠে এক গ্লাস পানি পান করুন",
+  "🍲 ডায়রিয়া হলে খাবার স্যালাইন খান",
+  "💦 প্রস্রাব গাঢ় হলুদ হলে বেশি পানি খান",
+  "🧊 ফ্রিজের অতিরিক্ত ঠান্ডা পানি এড়িয়ে চলুন",
+  "🚶 প্রতিদিন কমপক্ষে ৩০ মিনিট হাঁটুন",
+  "🏃 সপ্তাহে ৫ দিন হালকা ব্যায়াম করুন",
+  "🧘 সকালে ১০ মিনিট গভীর শ্বাসের ব্যায়াম করুন",
+  "💪 ৪০ বছরের পর ভারী ব্যায়ামের আগে ডাক্তার দেখান",
+  "🪑 একটানা বসে থাকবেন না — প্রতি ঘণ্টায় উঠে হাঁটুন",
+  "🏋️ শিশুদের প্রতিদিন খেলাধুলা করতে দিন",
+  "🚴 সাইকেল চালানো হার্টের জন্য ভালো",
+  "🧍 সোজা হয়ে বসুন — কোমর ব্যথা কমবে",
+  "📱 মোবাইল দেখতে দেখতে ঘাড় ঝুঁকাবেন না",
+  "🌳 খোলা বাতাসে হাঁটলে মন ভালো থাকে",
+  "🧂 খাবারে লবণ কম খান — প্রেশার নিয়ন্ত্রণে থাকবে",
+  "🩺 ৩৫ বছরের পর বছরে একবার প্রেশার মাপান",
+  "❤️ বুকে ব্যথা হলে দেরি না করে হাসপাতালে যান",
+  "🍌 কলা প্রেশার নিয়ন্ত্রণে সাহায্য করে",
+  "🛢️ রান্নায় তেল কম ব্যবহার করুন",
+  "🍗 চর্বিযুক্ত মাংস কম খান",
+  "🐟 সপ্তাহে ২ দিন মাছ খান — হার্ট ভালো থাকে",
+  "😡 রাগ ও টেনশন প্রেশার বাড়িয়ে দেয়",
+  "⚖️ ওজন নিয়ন্ত্রণে রাখুন",
+  "🧄 কাঁচা রসুন প্রেশারের জন্য উপকারী",
+  "🍬 মিষ্টি ও চিনি কম খান",
+  "🩸 ৪০ বছরের পর বছরে একবার ডায়াবেটিস পরীক্ষা করুন",
+  "🍚 ভাতের পরিমাণ কমিয়ে শাকসবজি বাড়ান",
+  "🚶 খাওয়ার পর ১৫ মিনিট হাঁটুন — সুগার কমে",
+  "🦶 ডায়াবেটিস রোগীরা পায়ের যত্ন নিন",
+  "🍩 বেকারির মিষ্টি এড়িয়ে চলুন",
+  "📉 হঠাৎ ওজন কমে গেলে ডায়াবেটিস পরীক্ষা করুন",
+  "💧 বেশি তৃষ্ণা ও বারবার প্রস্রাব ডায়াবেটিসের লক্ষণ",
+  "🕐 প্রতিদিন নিয়মিত সময়ে খাবার খান",
+  "🍯 মধুও চিনির মতোই — মেপে খান",
+  "🚭 ধূমপান ও তামাক ত্যাগ করুন — হার্ট সুস্থ থাকবে",
+  "💨 পরোক্ষ ধূমপান শিশুদের জন্য বিপজ্জনক",
+  "😮‍💨 কাশি ২ সপ্তাহের বেশি থাকলে ডাক্তার দেখান",
+  "🫁 যক্ষ্মার ওষুধ মাঝপথে বন্ধ করবেন না",
+  "😷 ধুলোবালিতে মাস্ক ব্যবহার করুন",
+  "🌫️ শীতে সর্দি হলে গরম পানির ভাপ নিন",
+  "🤧 হাঁচি-কাশির সময় মুখ ঢেকে রাখুন",
+  "🧹 ঘর ধুলোমুক্ত রাখুন — অ্যালার্জি কমবে",
+  "🪟 প্রতিদিন ঘরে আলো-বাতাস ঢুকতে দিন",
+  "🔥 চুলার ধোঁয়া থেকে শিশুদের দূরে রাখুন",
+  "🍎 প্রতিদিন মৌসুমি ফল খান",
+  "🥬 প্রতিদিন শাকসবজি খান",
+  "🍳 সকালের নাস্তা কখনো বাদ দেবেন না",
+  "🍔 ফাস্টফুড সপ্তাহে একবারের বেশি নয়",
+  "🥜 বাদাম মস্তিষ্কের জন্য ভালো",
+  "🥛 প্রতিদিন দুধ অথবা ডিম খান",
+  "🧆 বাসি ও পচা খাবার খাবেন না",
+  "🍽️ একবারে অতিরিক্ত খাওয়া এড়িয়ে চলুন",
+  "🌶️ অতিরিক্ত ঝাল গ্যাস্ট্রিক বাড়িয়ে দেয়",
+  "🥗 রাতের খাবার হালকা রাখুন",
+  "😴 প্রতিদিন ৭–৮ ঘণ্টা ঘুমান",
+  "📵 ঘুমের ১ ঘণ্টা আগে মোবাইল দূরে রাখুন",
+  "😟 দুশ্চিন্তা কমাতে নিয়মিত নামাজ পড়ুন",
+  "👨‍👩‍👧 পরিবারের সঙ্গে সময় কাটান — মন ভালো থাকে",
+  "😂 প্রাণখুলে হাসুন — মানসিক চাপ কমে",
+  "🌙 রাত জাগা স্বাস্থ্যের জন্য ক্ষতিকর",
+  "🛏️ দুপুরে ২০ মিনিটের বেশি ঘুমাবেন না",
+  "🧠 ভুলে যাওয়া বেড়ে গেলে ডাক্তার দেখান",
+  "🤝 মন খারাপ দীর্ঘদিন থাকলে কাউন্সেলিং নিন",
+  "🎵 পছন্দের গান শুনুন — মন ভালো থাকে",
+  "💊 ডাক্তারের পরামর্শ ছাড়া কোনো ওষুধ খাবেন না",
+  "💉 অ্যান্টিবায়োটিকের পুরো কোর্স শেষ করুন",
+  "🌡️ জ্বর ৩ দিনের বেশি থাকলে রক্ত পরীক্ষা করুন",
+  "🧼 খাওয়ার আগে ও টয়লেটের পরে সাবান দিয়ে হাত ধুন",
+  "🦷 দিনে ২ বার দাঁত ব্রাশ করুন",
+  "👁️ চোখ চুলকালে নোংরা হাতে ধরবেন না",
+  "💅 নখ ছোট ও পরিষ্কার রাখুন",
+  "🧴 মেয়াদোত্তীর্ণ ওষুধ ফেলে দিন",
+  "📋 প্রতিটি প্রেসক্রিপশন যত্নে সংরক্ষণ করুন",
+  "🩹 কাটা-ছেঁড়া পরিষ্কার পানিতে ধুয়ে ব্যান্ডেজ করুন",
+  "🦟 ঘুমের সময় অবশ্যই মশারি ব্যবহার করুন",
+  "🪣 টব-টায়ারে জমা পানি ফেলুন — ডেঙ্গু রোধ করুন",
+  "🤒 ডেঙ্গু সন্দেহ হলে দ্রুত রক্ত পরীক্ষা করুন",
+  "👶 শিশুকে সময়মতো সব টিকা দিন",
+  "🤱 ৬ মাস পর্যন্ত শিশুকে শুধু বুকের দুধ দিন",
+  "🧒 শিশুর জ্বর হলে গা মুছে দিন — কাঁথা চাপাবেন না",
+  "🤰 গর্ভবতী মায়েরা নিয়মিত চেকআপ করুন",
+  "🩸 রক্তস্বল্পতায় কচুশাক ও কলিজা খান",
+  "👴 বয়স্কদের জন্য বাথরুমে হ্যান্ডেল লাগান",
+  "🦴 হাড় মজবুত রাখতে প্রতিদিন রোদে দাঁড়ান",
+  "🚑 দুর্ঘটনায় আহতকে দ্রুত হাসপাতালে নিন",
+  "🔥 পুড়ে গেলে ঠান্ডা পানি ঢালুন — পেস্ট লাগাবেন না",
+  "🐍 সাপে কাটলে ওঝা নয় — দ্রুত হাসপাতালে যান",
+  "💧 ডায়রিয়ায় বারবার স্যালাইন খাওয়ান",
+  "🧊 মাথা ঘুরলে বসে পড়ুন — ভিড় এড়িয়ে চলুন",
+  "🩹 নাক দিয়ে রক্ত পড়লে সামনে ঝুঁকে নাক চাপুন",
+  "☀️ দুপুরের কড়া রোদে ছাতা ব্যবহার করুন",
+  "🌧️ বৃষ্টিতে ভিজলে দ্রুত শুকনো কাপড় পরুন",
+  "🐕 কুকুর-বিড়াল কামড়ালে দ্রুত টিকা নিন",
+  "📞 জরুরি প্রয়োজনে ৯৯৯ নম্বরে কল করুন",
+];
+
+/** Scale-to-fit: identical layout on any screen size/ratio (letterboxed). */
+function useStageScale(): number {
+  // First paint (server + hydration) is always 1 — real size applies after
+  // mount so server HTML and first client paint match exactly.
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const fit = () => {
+      setScale(Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H));
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
+  return scale;
+}
 export function LiveBoard({ username, initial }: { username: string; initial: LiveSnapshot | null }) {
   const [snap, setSnap] = useState<LiveSnapshot | null>(initial);
+  // Adopt a resolved/changed server `initial` (client nav, SSR null at
+  // first paint) via render-adjust, not an effect — no cascading renders,
+  // and a fresher SSE pull is never clobbered (prop identity is stable
+  // except across navigations).
+  const [prevInitial, setPrevInitial] = useState(initial);
+  if (initial !== prevInitial) {
+    setPrevInitial(initial);
+    setSnap(initial);
+  }
   const { now, time: clock } = useClock();
-  const [origin, setOrigin] = useState("");
-
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
 
   const pull = useCallback(async () => {
     try {
-      const res = await apiFetch(
+      // Plain fetch on purpose: this is a PUBLIC tv board — it must never
+      // bounce to /login the way apiFetch does on 401.
+      const res = await fetch(
         `/api/backend/api/website/doctors/${encodeURIComponent(username)}/serial-live`,
+        { cache: "no-store" },
       );
       const json = (await res.json().catch(() => null)) as { data?: LiveSnapshot } | null;
       if (res.ok && json?.data) setSnap(json.data);
@@ -124,6 +268,13 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
       /* keep last frame on network blips */
     }
   }, [username]);
+
+  // One catch-up pull on mount: covers anything pushed between the SSR
+  // fetch and first paint. After that, purely push-driven (SSE below).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount catch-up fetch syncing external snapshot
+    void pull();
+  }, [pull]);
 
   // Push-driven board: snapshot re-pulls only when the server pushes a
   // `live` frame for this doctor (or on reconnect catch-up). No polling —
@@ -136,25 +287,91 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
     },
   });
 
+  // Frontend-only voice announcement (no server load).
+  // Current patient now, next person after 45s so they can get ready.
+  // `auto` = Android lady voice first, sweet Google MP3 elsewhere.
+  // Stays silent until the user taps the sound button once (browser policy).
+  // Break expiry is also enforced client-side (1s clock) so the banner and
+  // the silence lift on time even if no server push arrives at that second.
+  const breakInfo = snap?.break ?? null;
+  const breakActive =
+    breakInfo && breakInfo.endsAt && now && new Date(breakInfo.endsAt).getTime() <= now.getTime()
+      ? null
+      : breakInfo;
+  const {
+    enabled: soundOn,
+    enable: enableSound,
+    replay: replayAnnounce,
+    nextIn,
+  } = useLiveAnnounce(
+    snap
+      ? {
+          current: snap.current,
+          next: snap.next ?? snap.upcoming[0] ?? null,
+        }
+      : null,
+    { engine: "auto", nextDelayMs: 45_000 },
+    // While the doctor is on break the repeating next-call stays silent.
+    !!breakActive,
+  );
+  const scale = useStageScale();
+
+  // One-shot "doctor on break" call when a break appears (repeats stay off).
+  const prevBreakKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = breakActive ? `${breakActive.reason}|${breakActive.endsAt}` : null;
+    if (breakActive && key && key !== prevBreakKeyRef.current && soundOn) {
+      const mins = breakActive.endsAt
+        ? Math.max(1, Math.ceil((new Date(breakActive.endsAt).getTime() - Date.now()) / 60000))
+        : 10;
+      void announceBreak(breakActive.reason, mins, { engine: "auto" });
+    }
+    prevBreakKeyRef.current = key;
+  }, [breakActive, soundOn]);
+
   if (!snap) {
     return (
-      <div className="flex h-dvh items-center justify-center overflow-hidden">
-        <div className="text-center">
-          <p className="text-3xl font-black text-white">ডাক্তার পাওয়া যায়নি।</p>
-          <p className="mt-2 text-lg text-white/60">ইউজারনেমটি ঠিক আছে কি না দেখুন।</p>
+      <div className="flex h-dvh w-screen items-center justify-center overflow-hidden">
+        <div
+          className="flex shrink-0 items-center justify-center"
+          style={{ width: STAGE_W, height: STAGE_H, transform: `scale(${scale})` }}
+        >
+          <div className="text-center">
+            <p className="text-3xl font-black text-white">ডাক্তার পাওয়া যায়নি।</p>
+            <p className="mt-2 text-lg text-white/60">ইউজারনেমটি ঠিক আছে কি না দেখুন।</p>
+            <button
+              type="button"
+              onClick={() => void pull()}
+              className="mt-6 rounded-full bg-amber-300 px-6 py-2 font-black text-emerald-950 shadow-lg transition hover:bg-amber-200 active:scale-95"
+            >
+              🔄 আবার চেষ্টা করুন
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  const bookingUrl = origin ? `${origin}/s/${encodeURIComponent(snap.doctor.username)}#serial` : "";
+  // QR always targets the doctor's own site serial section, e.g.
+  // https://dr-moniruzzman.mrdoctor.com.bd/#serial — derived from the
+  // username so it is correct for every doctor, and identical on server
+  // and client (no window/origin involved → no hydration mismatch).
+  const cleanHost = snap.doctor.username
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/^-+|-+$/g, "");
+  const bookingUrl = cleanHost ? `https://${cleanHost}.${getRootDomain()}/#serial` : "";
   const nextFour = snap.upcoming.slice(0, 4);
   const missed = snap.missed ?? [];
   const portrait = doctorPortrait(snap.doctor.profilePicture);
   const avatarFallback = fallbackAvatar();
 
   return (
-    <div className="relative flex h-dvh flex-col gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4">
+    <div className="flex h-dvh w-screen items-center justify-center overflow-hidden">
+      <div
+        className="relative flex shrink-0 flex-col gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4"
+        style={{ width: STAGE_W, height: STAGE_H, transform: `scale(${scale})` }}
+      >
       {/* ambient stage light */}
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <div className="absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-emerald-500/20 blur-[100px]" />
@@ -189,7 +406,63 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
         <p className="shrink-0 font-mono text-base font-black tabular-nums text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] sm:text-xl" aria-label="বর্তমান সময়">
           🕒 {clock}
         </p>
+        <div className="flex shrink-0 items-center gap-2">
+          {!soundOn ? (
+            <button
+              type="button"
+              onClick={() => void enableSound()}
+              className="rounded-full bg-amber-300 px-4 py-1.5 text-sm font-black text-emerald-950 shadow-lg transition hover:bg-amber-200 active:scale-95"
+            >
+              🔊 সাউন্ড চালু করুন
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={replayAnnounce}
+              className="rounded-full border border-emerald-300/40 bg-emerald-500/20 px-4 py-1.5 text-sm font-black text-emerald-100 shadow transition hover:bg-emerald-500/30 active:scale-95"
+              title="শেষ ঘোষণা আবার শুনুন"
+            >
+              🔊 চালু আছে · 🔁 আবার শুনুন
+              {nextIn !== null && nextIn > 0 ? ` · ⏳ ${toBn(nextIn)}s` : ""}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Break banner — reason + live return countdown (ticking, client-only) */}
+      {breakActive && (
+        <div
+          role="status"
+          className="relative flex shrink-0 items-center justify-center gap-3 overflow-hidden rounded-2xl border border-amber-200/60 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 px-4 py-2 shadow-lg"
+        >
+          <span className="shrink-0 animate-pulse" style={{ fontSize: "clamp(1.2rem, 2.6vw, 2rem)" }}>
+            ⏸️
+          </span>
+          <p
+            className="min-w-0 flex-1 truncate text-center font-black text-emerald-950"
+            style={{ fontSize: "clamp(1rem, 2.5vw, 1.8rem)" }}
+          >
+            বিরতি চলছে · {breakActive.reason}
+          </p>
+          <span
+            suppressHydrationWarning
+            className="shrink-0 rounded-full bg-emerald-950 px-4 py-1 font-black tabular-nums text-amber-300"
+            style={{ fontSize: "clamp(0.85rem, 2vw, 1.4rem)" }}
+          >
+            {(() => {
+              if (!now || !breakActive.endsAt) return "…";
+              const t = new Date(breakActive.endsAt).getTime();
+              if (Number.isNaN(t)) return "…";
+              const left = Math.max(0, t - now.getTime());
+              const mm = Math.floor(left / 60000);
+              const ss = Math.floor((left % 60000) / 1000);
+              const p2 = (n: number) => String(n).padStart(2, "0");
+              const d = new Date(t);
+              return `ফিরবেন ${toBn(`${p2(d.getHours())}:${p2(d.getMinutes())}`)} · আর ${toBn(mm)}:${toBn(p2(ss))}`;
+            })()}
+          </span>
+        </div>
+      )}
 
       {!snap.live || !snap.current ? (
         <div className="relative flex flex-1 items-center justify-center">
@@ -438,10 +711,27 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
         </div>
       )}
 
-      {/* Patience note */}
-      <p className="relative mt-3 shrink-0 truncate rounded-2xl bg-amber-300 px-4 py-2 text-center font-black text-emerald-950 shadow-lg sm:mt-4" style={{ fontSize: "clamp(0.95rem, 2.3vw, 1.6rem)" }}>
-        🙏 অপেক্ষা করুন, হুড়াহুড়ি করবেন না · <span dir="rtl" lang="ar">«وَبَشِّرِ الصَّابِرِينَ»</span> — “ধৈর্যশীলদের সুসংবাদ দিন” (২:১৫৫)
-      </p>
+      {/* Scrolling notice board — patience verse, emergency rule, health tips */}
+      <div className="relative mt-3 shrink-0 overflow-hidden rounded-2xl bg-amber-300 shadow-lg sm:mt-4">
+        <div
+          className="notice-marquee-track flex w-max items-center py-2 font-black text-emerald-950"
+          style={{ fontSize: "clamp(0.95rem, 2.3vw, 1.6rem)" }}
+        >
+          {[0, 1].map((copy) => (
+            <div key={copy} aria-hidden={copy === 1} className="flex items-center">
+              {NOTICES.map((n, i) => (
+                <span key={i} className="flex items-center whitespace-nowrap">
+                  <span className="px-6">{n}</span>
+                  <span aria-hidden="true" className="text-emerald-800">
+                    ✦
+                  </span>
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      </div>
     </div>
   );
 }
