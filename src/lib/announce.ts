@@ -85,19 +85,21 @@ export function serialToBnWords(n: number): string {
   return String(n).split("").map((d) => BN_0_99[Number(d)]).join(" ");
 }
 
-/** "Please come inside" part only. */
+/** "Please come inside" part only — warm + polished, with documents reminder. */
 export function buildCurrentAnnouncement(current: AnnouncePatient): string {
   return (
-    `দয়া করে ভিতরে আসুন, ${current.patientName}, ` +
-    `সিরিয়াল নম্বর ${serialToBnWords(current.serial)}।`
+    `সিরিয়াল নম্বর ${serialToBnWords(current.serial)}, ${current.patientName}, ` +
+    `দয়া করে আপনি ভিতরে আসুন। আসার সময় আপনার পুরনো প্রেসক্রিপশন, কাগজপত্র ও রিপোর্ট যদি থাকে, ` +
+    `অনুগ্রহ করে সাথে করে নিয়ে আসবেন।`
   );
 }
 
-/** "Next person get ready" part only. */
+/** "Next person get ready" part only — with documents reminder. */
 export function buildNextAnnouncement(next: AnnouncePatient): string {
   return (
-    `${next.patientName}, সিরিয়াল নম্বর ${serialToBnWords(next.serial)}, ` +
-    `আপনি প্রস্তুত থাকুন।`
+    `সিরিয়াল নম্বর ${serialToBnWords(next.serial)}, ${next.patientName}, ` +
+    `দয়া করে আপনি প্রস্তুত থাকুন। আপনার দরকারী কাগজপত্র ও রিপোর্ট যদি থাকে, ` +
+    `প্রস্তুত করে রাখুন।`
   );
 }
 
