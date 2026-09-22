@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import { toBn } from "@/lib/bn";
+import { CreditTopupCard } from "@/components/admin/CreditTopupCard";
 
 interface DoctorOverview {
   doctor: {
@@ -87,6 +88,8 @@ export function DoctorDetailPanel({ id }: { id: string }) {
           {d.status === "APPROVED" ? "✅ অনুমোদিত" : "⏳ বিচারাধীন"}
         </p>
       </section>
+
+      <CreditTopupCard ownerType="DOCTOR" ownerId={id} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {stats.map((s) => (

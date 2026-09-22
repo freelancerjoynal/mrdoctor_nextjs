@@ -2,6 +2,7 @@
 
 import { FadeIn } from "@/components/motion/FadeIn";
 import { doctorPortrait, fallbackAvatar } from "@/lib/profile";
+import { CreditBalanceBadge } from "@/components/dashboard/CreditBalanceBadge";
 
 export interface HeroDoctor {
   name: string;
@@ -46,6 +47,9 @@ export function DoctorHeroCard({ doctor, greeting }: { doctor: HeroDoctor; greet
                 “{doctor.tagline}”
               </p>
             )}
+            <div className="mt-2">
+              <CreditBalanceBadge />
+            </div>
           </div>
         </div>
       </section>

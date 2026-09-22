@@ -13,6 +13,7 @@ import { fetchProfile } from "@/lib/store/profileSlice";
 import { buildPortalUrl } from "@/lib/portal";
 import { useRealtimeStream } from "@/lib/realtime/useRealtimeStream";
 import { LocalBookingPanel } from "../local-booking/LocalBookingPanel";
+import { CreditBalanceBadge } from "@/components/dashboard/CreditBalanceBadge";
 
 type MainTab = "today" | "tomorrow" | "last30";
 type SubTab = "ALL" | "ONLINE" | "OFFLINE" | "DONE";
@@ -67,22 +68,6 @@ function missedAgoBn(skippedAt?: string | null): string {
   const mins = Math.floor((Date.now() - t) / 60000);
   if (mins < 1) return "এইমাত্র মিস";
   return `${toBn(mins)} মিনিট আগে মিস`;
-}
-
-interface Bucket {
-  total: number;
-  count: number;
-  newCount: number;
-  renewCount: number;
-}
-
-interface Summary {
-  today: string;
-  todayExpected: Bucket;
-  todayDone: Bucket;
-  week: Bucket;
-  month: Bucket | null;
-  lifetime: Bucket | null;
 }
 
 interface ConfirmedRow {
@@ -260,13 +245,6 @@ async function servedCountsApi(doctorId?: string): Promise<Record<MainTab, numbe
   };
 }
 
-async function summaryApi(): Promise<Summary> {
-  const res = await apiFetch("/api/backend/api/users/appointments/summary");
-  const data = (await res.json().catch(() => null)) as { data?: Summary; error?: string } | null;
-  if (!res.ok) throw new Error(data?.error || "লোড করা যায়নি।");
-  return data?.data as Summary;
-}
-
 /** Row actions: PATCH/DELETE one confirmed booking, or POST a cancel request. */
 async function rowApi(url: string, method: string, body?: unknown) {
   const res = await apiFetch(url, {
@@ -396,7 +374,6 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     if (liveUsername) setLiveBoardUrl(`${buildPortalUrl(liveUsername)}/live`);
     else setLiveBoardUrl(null);
   }, [liveUsername]);
-  const [summary, setSummary] = useState<Summary | null>(null);
   const [collection, setCollection] = useState<CollectionSummary | null>(null);
   const [staffCols, setStaffCols] = useState<StaffBucket[]>([]);
   const [staffView, setStaffView] = useState<{ userId: string; name: string } | null>(null);
@@ -642,7 +619,6 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
           loadList(main, sub, doctorId),
           loadCounts(doctorId),
           listOnly ? Promise.resolve() : loadStaff(main, doctorId),
-          listOnly ? Promise.resolve() : summaryApi().then(setSummary).catch(() => {}),
           listOnly ? Promise.resolve() : collectionApi(doctorId).then(setCollection).catch(() => {}),
           mine && !listOnly ? loadMine(main, mine.userId, mine.hospitalDesk, doctorId) : Promise.resolve(),
         ]);
@@ -661,10 +637,9 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     let cancelled = false;
     (async () => {
       try {
-        const [{ rows, counts }, served, s, c, sc] = await Promise.all([
+        const [{ rows, counts }, served, c, sc] = await Promise.all([
           confirmedApi("?range=today&bookingType=ALL&limit=50"),
           servedCountsApi().catch(() => null),
-          summaryApi().catch(() => null),
           collectionApi().catch(() => null),
           staffApi("today").catch(() => []),
         ]);
@@ -679,7 +654,6 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
         } else if (served) {
           setCounts((prev) => ({ ...prev, last30: served.last30 }));
         }
-        if (s) setSummary(s);
         if (c) setCollection(c);
         setStaffCols(sc);
       } catch (err: unknown) {
@@ -1114,21 +1088,13 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     }
   };
 
-  // Hero follows the day tab: today → আজ আদায়, tomorrow → আগামীকালের কালেকশন.
+  // Hero date + one-line figures follow the day tab (left side, under doctor details).
   const isTomorrow = mainTab === "tomorrow";
-  const adayBox = isTomorrow
-    ? (collection?.tomorrowTotal ?? null)
-    : (collection?.todayTotal ?? collection?.todayBox ?? null);
-  const incomeBox = isTomorrow ? (collection?.tomorrowBox ?? null) : (collection?.todayBox ?? null);
-  const heroLabel = isTomorrow ? "আগামীকালের কালেকশন" : "আজ আদায়";
   const heroDate = collection ? (isTomorrow ? (collection.tomorrow ?? collection.today) : collection.today) : null;
-  const incomeLabel = isTomorrow ? "💰 আগামীকালের আয় (সেবা সম্পন্ন)" : "💰 আজকের আয় (সেবা সম্পন্ন)";
-  const todayTotal = adayBox ? adayBox.total : (!isTomorrow ? (summary?.todayExpected.total ?? 0) : 0);
-  const todayCount = adayBox ? adayBox.count : (!isTomorrow ? (summary?.todayExpected.count ?? 0) : 0);
-  const todayOnline = adayBox?.online;
-  const todayOffline = adayBox?.offline;
-  // First-load shimmer for the hero figures (background refreshes keep old data).
-  const heroLoading = loading && !collection && !summary;
+  // Collection (served + confirmed, never drops) and served-only income.
+  const heroCollection = isTomorrow ? (collection?.tomorrowTotal ?? null) : (collection?.todayTotal ?? collection?.todayBox ?? null);
+  const heroServed = isTomorrow ? (collection?.tomorrowBox ?? null) : (collection?.todayBox ?? null);
+  const heroPending = isTomorrow ? (collection?.tomorrowConfirmed ?? null) : (collection?.todayConfirmed ?? null);
   const doctorSubline = [doctor?.degree, doctor?.speciality].filter(Boolean).join(" · ");
 
   // Hospital-desk hero + cash live on the dashboard (HospitalDeskDashboard) —
@@ -1194,70 +1160,67 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
                   {doctor?.tagline && (
                     <p className="mt-0.5 truncate text-base italic text-white/75">“{doctor.tagline}”</p>
                   )}
+                  {heroDate && (
+                    <p className="mt-1.5 text-xs font-bold text-white/75">📅 {bnDateLabel(heroDate)}</p>
+                  )}
+                  <div className="mt-2">
+                    <CreditBalanceBadge />
+                  </div>
+                  {live?.live && (
+                    <p className="mt-2 flex items-center gap-1.5 text-xs font-black tracking-widest text-white">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                      </span>
+                      LIVE{liveBreakActive ? " · ⏸️ বিরতি" : ""}
+                    </p>
+                  )}
+                  {loading && !collection ? (
+                    <div className="mt-3 space-y-2" aria-label="লোড হচ্ছে">
+                      <Skeleton light className="h-12 w-72 max-w-full sm:h-16" />
+                      <Skeleton light className="h-4 w-56 max-w-full" />
+                    </div>
+                  ) : (
+                    heroCollection && (
+                      <>
+                        <p
+                          className="mt-2 whitespace-nowrap font-black tracking-tight"
+                          style={{ fontSize: "clamp(1.25rem, 4vw, 35px)", lineHeight: 1.1 }}
+                        >
+                          <span className="text-white">
+                            {taka(heroCollection.total)}{" "}
+                            <span className="font-bold text-white/70" style={{ fontSize: "0.38em" }}>
+                              আদায়
+                            </span>
+                          </span>
+                          <span className="text-white/40"> · </span>
+                          <span className="text-amber-300">
+                            {taka(heroServed?.total ?? 0)}{" "}
+                            <span className="font-bold text-amber-200/80" style={{ fontSize: "0.38em" }}>
+                              আয় (সেবা)
+                            </span>
+                          </span>
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-white/80 sm:text-sm">
+                          মোট {toBn(heroCollection.count)}টি অ্যাপয়েন্টমেন্ট · {toBn(heroPending?.count ?? 0)}টি
+                          বিচারাধীন · {toBn(heroServed?.count ?? 0)}টি সেবা সম্পন্ন
+                        </p>
+                      </>
+                    )
+                  )}
                 </>
               )}
             </div>
           </div>
-          {/* আদায় (served + confirmed — never decreases on serve) */}
-          <div className="w-full max-w-md rounded-2xl bg-white/12 p-4 ring-1 ring-white/25 backdrop-blur sm:p-5 lg:text-right">
-            <p className="text-xs font-bold uppercase tracking-widest text-white/80">
-              {heroLabel} · {heroDate ? bnDateLabel(heroDate) : "…"}
-            </p>
-            {heroLoading ? (
-              <div className="space-y-2" aria-label="লোড হচ্ছে">
-                <Skeleton light className="h-9 w-44 sm:h-12" />
-                <Skeleton light className="h-4 w-56" />
-                <p className="flex flex-wrap gap-1.5 lg:justify-end">
-                  <Skeleton light className="h-6 w-24 !rounded-full" />
-                  <Skeleton light className="h-6 w-24 !rounded-full" />
-                </p>
-                <Skeleton light className="h-10 w-full" />
-              </div>
-            ) : (
-              <>
-                <p className="mt-1 text-3xl font-black tracking-tight sm:text-5xl">{taka(todayTotal)}</p>
-            <p className="mt-2 text-sm text-white/85">
-              মোট {toBn(todayCount)} জন
-              {todayOnline && todayOffline && (
-                <>
-                  {" "}· অনলাইন {taka(todayOnline.total)} · অফলাইন {taka(todayOffline.total)}
-                </>
-              )}
-            </p>
-            {todayOnline && todayOffline && (
-              <p className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold lg:justify-end">
-                <span className="rounded-full bg-white/20 px-2.5 py-1 text-white">
-                  অনলাইন {toBn(todayOnline.count)} জন
-                </span>
-                <span className="rounded-full bg-white/20 px-2.5 py-1 text-white">
-                  অফলাইন {toBn(todayOffline.count)} জন
-                </span>
-              </p>
-            )}
-            {/* আয় — served only (block-stacked on mobile, inline on sm+) */}
-            <p className="mt-3 rounded-xl bg-black/15 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/20">
-              <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-white/70 sm:mb-0 sm:inline sm:text-sm sm:normal-case sm:tracking-normal">
-                {incomeLabel}:
-              </span>{" "}
-              <span className="block text-xl font-black sm:inline sm:text-sm">
-                {incomeBox ? (
-                  <>
-                    {taka(incomeBox.total)} · {toBn(incomeBox.count)} জন
-                  </>
-                ) : (
-                  "…"
-                )}
-              </span>
-            </p>
-              </>
-            )}
+          {/* Actions only — figures and live serials live in the list below */}
+          <div className="flex w-full max-w-md flex-col gap-2 lg:items-end">
             <button
               onClick={() => setBookingOpen(true)}
-              className="mt-3 w-full rounded-xl bg-white px-5 py-2.5 text-sm font-black text-emerald-700 shadow transition hover:-translate-y-0.5 hover:shadow-lg sm:w-auto"
+              className="w-full rounded-xl bg-white px-5 py-2.5 text-sm font-black text-emerald-700 shadow transition hover:-translate-y-0.5 hover:shadow-lg lg:w-auto"
             >
               ➕ নতুন অ্যাপয়েন্টমেন্ট
             </button>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               {!isHospitalDesk && (
                 <button
                   onClick={() => void toggleLive()}
@@ -1383,47 +1346,10 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
             {live?.live && liveBreakActive && (
               <p
                 suppressHydrationWarning
-                className="mt-2 rounded-xl bg-amber-400/20 px-3 py-2 text-sm font-black text-amber-200 ring-1 ring-amber-300/40"
+                className="w-full rounded-xl bg-amber-400/20 px-3 py-2 text-sm font-black text-amber-200 ring-1 ring-amber-300/40 lg:text-right"
               >
                 ⏸️ বিরতি চলছে — {liveBreakActive.reason}
                 {breakBackBn(liveBreakActive.endsAt) ? ` · ফিরবেন ${breakBackBn(liveBreakActive.endsAt)}` : ""}
-              </p>
-            )}
-            {live?.live && (
-              <p className="mt-2 flex items-center gap-2 text-sm font-bold text-white">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-                </span>
-                LIVE
-                {live.current
-                  ? ` · সিরিয়াল ${toBn(live.current.serial)} — ${live.current.patientName} · অপেক্ষায় ${toBn(live.waitingCount)} জন`
-                  : ` · অপেক্ষায় ${toBn(live.waitingCount)} জন`}
-                {liveBreakActive ? ` · ⏸️ বিরতি — ${liveBreakActive.reason}` : ""}
-              </p>
-            )}
-            {/* Live waiting list — same board data as the TV (auto-includes missed at the tail) */}
-            {live?.live && (live?.upcoming?.length ?? 0) > 0 && (
-              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-white">
-                <span className="text-white/80">⏭️ পরবর্তী:</span>
-                {(live?.upcoming ?? []).slice(0, 4).map((u) => (
-                  <span
-                    key={u.serial}
-                    className="rounded-full bg-white/20 px-2.5 py-1 text-white"
-                    title={`${u.patientName} — সিরিয়াল ${toBn(u.serial)}`}
-                  >
-                    {toBn(u.serial)} · {u.patientName}
-                  </span>
-                ))}
-              </p>
-            )}
-            {live?.live && (live?.missed?.length ?? 0) > 0 && (
-              <p
-                className="mt-2 rounded-xl bg-black/15 px-3 py-2 text-sm font-bold text-amber-200 ring-1 ring-white/20"
-                title="উপস্থিত না থাকা সিরিয়াল — রোগী ফিরলে সেবা দিন"
-              >
-                ⏳ উপস্থিত হননি — অপেক্ষা করুন:{" "}
-                {(live?.missed ?? []).map((m) => `${toBn(m.serial)} · ${m.patientName}`).join(" , ")}
               </p>
             )}
           </div>

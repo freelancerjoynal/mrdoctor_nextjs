@@ -7,6 +7,7 @@ import { getInitial } from "@/lib/auth/displayName";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { HeaderAvatar } from "@/components/dashboard/HeaderAvatar";
 import { HospitalLifetimeBalanceButton } from "@/components/dashboard/HospitalLifetimeBalanceButton";
+import { CreditBalanceBadge } from "@/components/dashboard/CreditBalanceBadge";
 import { DashboardSidebar } from "./DashboardSidebar";
 
 /**
@@ -79,6 +80,14 @@ export function DashboardShell({
               ☰
             </button>
             <div className="min-w-0 flex-1" />
+            {(role === "DOCTOR" ||
+              role === "DOCTOR_STAFF" ||
+              role === "HOSPITAL" ||
+              role === "HOSPITAL_STAFF") && (
+              <span className="shrink-0">
+                <CreditBalanceBadge tone="light" />
+              </span>
+            )}
             {role === "HOSPITAL" && <HospitalLifetimeBalanceButton />}
             {/* User identity — top-right */}
             <span className="flex min-w-0 items-center gap-2.5">

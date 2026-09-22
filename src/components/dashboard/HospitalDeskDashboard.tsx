@@ -10,6 +10,7 @@ import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { fetchProfile } from "@/lib/store/profileSlice";
 import { useRealtimeStream } from "@/lib/realtime/useRealtimeStream";
 import { LocalBookingPanel } from "@/app/dashboard/local-booking/LocalBookingPanel";
+import { CreditBalanceBadge } from "@/components/dashboard/CreditBalanceBadge";
 
 type DayRange = "yesterday" | "today";
 
@@ -417,6 +418,7 @@ export function HospitalDeskDashboard() {
               )}
             </div>
             <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-black text-white">{staffRoleBn}</span>
+            <CreditBalanceBadge />
           </div>
           <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
             <div className="flex min-w-0 items-center gap-4 rounded-2xl bg-white/10 p-4 ring-1 ring-white/25 backdrop-blur">

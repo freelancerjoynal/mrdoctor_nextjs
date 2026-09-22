@@ -12,6 +12,7 @@ import {
   type PayoutList,
 } from "./balanceApi";
 import { LocalBookingTab } from "./LocalBookingTab";
+import { CreditBalanceBadge } from "@/components/dashboard/CreditBalanceBadge";
 
 function taka(n: number): string {
   return `৳${toBn(Math.round(n))}`;
@@ -81,11 +82,13 @@ export function HospitalOwnerBoard() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount fetch syncing external balance snapshot
     void load(false);
   }, [load]);
 
   // Ledger + payments fetch on first tab open only (never prefetched).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tab-open fetch syncing external snapshots
     if (tab === "ledger" && !days && !daysLoading) void loadDays(1);
     if (tab === "payments" && !payouts && !payoutsLoading) void loadPayouts(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,6 +142,9 @@ export function HospitalOwnerBoard() {
                 <p className="text-[11px] font-bold text-slate-400">
                   {summary ? `${toBn(summary.today.online.count)} জন সেবা · ব্যালেন্সে ধরা আছে` : ""}
                 </p>
+              </div>
+              <div className="flex justify-end">
+                <CreditBalanceBadge />
               </div>
               <button
                 type="button"
