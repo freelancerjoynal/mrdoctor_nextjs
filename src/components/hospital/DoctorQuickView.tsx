@@ -131,10 +131,10 @@ export function DoctorQuickView({
           )}
           <div className="flex flex-wrap gap-2 text-sm">
             <span className="rounded-full bg-blue-50 px-3.5 py-1.5 font-semibold text-blue-800">
-              নতুন রোগী ৳{entry.newPatientFee}
+              নতুন রোগী ৳{entry.newPatientFee} (BDT)
             </span>
             <span className="rounded-full bg-slate-100 px-3.5 py-1.5 font-semibold text-slate-700">
-              পুরনো রোগী ৳{entry.oldPatientFee}
+              পুরনো রোগী ৳{entry.oldPatientFee} (BDT)
             </span>
           </div>
 

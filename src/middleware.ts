@@ -79,7 +79,22 @@ async function handle(req: NextRequest) {
   // URL stays on the subdomain in both cases.
   // Skip API, Next internals and the internal prefixes themselves (no loops).
   // Public sites never need auth handling.
+  // Legal/company pages ALWAYS serve from the apex route, even on a
+  // subdomain (booking-form policy links must open the real page,
+  // never a rewritten portal).
+  const APEX_ONLY_PATHS = [
+    "/about",
+    "/contact",
+    "/terms",
+    "/privacy",
+    "/refund",
+    "/delivery",
+  ];
+  const isApexOnly = APEX_ONLY_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
   if (
+    !isApexOnly &&
     !pathname.startsWith("/api/") &&
     !pathname.startsWith("/_next/") &&
     !pathname.startsWith("/s/") &&

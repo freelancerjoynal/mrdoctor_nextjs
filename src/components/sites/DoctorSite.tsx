@@ -619,10 +619,10 @@ export function DoctorSite({
                       )}
                       <div className="mt-4 flex flex-wrap gap-2 text-sm">
                         <span className="rounded-full bg-emerald-50 px-3.5 py-1.5 font-semibold text-emerald-800">
-                          নতুন রোগী ৳{c.newPatientFee}
+                          নতুন রোগী ৳{c.newPatientFee} (BDT)
                         </span>
                         <span className="rounded-full bg-stone-100 px-3.5 py-1.5 font-semibold text-slate-700">
-                          পুরনো রোগী ৳{c.oldPatientFee}
+                          পুরনো রোগী ৳{c.oldPatientFee} (BDT)
                         </span>
                       </div>
                       <a
@@ -845,22 +845,47 @@ export function DoctorSite({
 
       {/* ---------- Footer ---------- */}
       <footer className="bg-emerald-950 text-emerald-100">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-10 text-center md:flex-row md:text-left">
-          <div className="flex items-center gap-3">
-            <span
-              aria-hidden="true"
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-xl font-black text-emerald-950 ring-1 ring-white/20"
-            >
-              {brandInitial}
-            </span>
-            <div className="leading-tight">
-              <p className="font-bold text-white">{name}</p>
-              <p className="text-xs text-emerald-100/70">{doctorDemo.footerLine}</p>
+        <div className="mx-auto max-w-6xl px-5 py-10">
+          <div className="flex flex-col items-center justify-between gap-4 text-center md:flex-row md:text-left">
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-xl font-black text-emerald-950 ring-1 ring-white/20"
+              >
+                {brandInitial}
+              </span>
+              <div className="leading-tight">
+                <p className="font-bold text-white">{name}</p>
+                <p className="text-xs text-emerald-100/70">{doctorDemo.footerLine}</p>
+              </div>
             </div>
+            <p className="text-sm text-emerald-100/70">
+              © {toBn(new Date().getFullYear())} {name} · সর্বস্বত্ব সংরক্ষিত
+            </p>
           </div>
-          <p className="text-sm text-emerald-100/70">
-            © {toBn(new Date().getFullYear())} {name} · সর্বস্বত্ব সংরক্ষিত
-          </p>
+          <nav
+            aria-label="আইনি তথ্য"
+            className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-white/10 pt-5 text-xs md:justify-start"
+          >
+            {[
+              { href: "/about", label: "আমাদের সম্পর্কে" },
+              { href: "/contact", label: "ঠিকানা" },
+              { href: "/terms", label: "শর্তাবলী" },
+              { href: "/privacy", label: "প্রাইভেসি" },
+              { href: "/refund", label: "রিফান্ড" },
+              { href: "/delivery", label: "ডেলিভারি" },
+            ].map((l) => (
+              <a
+                key={l.href}
+                href={host ? buildApexUrl(l.href, host) : l.href}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-emerald-100/70 transition hover:text-amber-300"
+              >
+                {l.label}
+              </a>
+            ))}
+          </nav>
         </div>
       </footer>
     </div>

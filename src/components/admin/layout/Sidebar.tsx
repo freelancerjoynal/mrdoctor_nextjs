@@ -12,6 +12,7 @@ const NAV = [
   { href: "/admin/locations", label: "লোকেশন পোর্টাল", emoji: "📍", exact: false },
   { href: "/admin/seo", label: "SEO সেটিংস", emoji: "🔍", exact: false },
   { href: "/admin/applications", label: "যোগদানের আবেদন", emoji: "📥", exact: false },
+  { href: "/admin/messages", label: "যোগাযোগের বার্তা", emoji: "✉️", exact: false },
   { href: "/admin/create-account", label: "অ্যাকাউন্ট তৈরি", emoji: "➕", exact: false },
   { href: "/admin/income", label: "আয়", emoji: "💰", exact: false },
   { href: "/admin/payouts", label: "পেআউট", emoji: "💸", exact: false },

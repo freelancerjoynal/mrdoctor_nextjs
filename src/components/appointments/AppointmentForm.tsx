@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { PolicyAcceptance } from "@/components/legal/PolicyAcceptance";
+import { formatBDT } from "@/content/company";
 
 interface ChamberOption {
   id: string;
@@ -69,6 +71,8 @@ export function AppointmentForm({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Checkout gate: patient must accept T&C + Refund + Privacy.
+  const [accepted, setAccepted] = useState(false);
 
   // NOTE: callers remount per doctor (key={doctorUsername}) so the
   // initial loading state covers each fetch — no reset needed here.
@@ -163,6 +167,10 @@ export function AppointmentForm({
     }
     if (!autoChamber) {
       setError("এই তারিখে কোনো চেম্বার পাওয়া যায়নি।");
+      return;
+    }
+    if (!accepted) {
+      setError("এগিয়ে যেতে শর্তাবলী, রিফান্ড ও প্রাইভেসি পলিসিতে টিক দিয়ে সম্মতি দিন।");
       return;
     }
     setSending(true);
@@ -358,7 +366,7 @@ export function AppointmentForm({
                   <span className="block text-sm font-bold">{opt.label}</span>
                   {opt.fee != null && opt.fee > 0 && (
                     <span className="mt-0.5 block text-xs font-semibold opacity-80">
-                      ৳{opt.fee}
+                      {formatBDT(opt.fee)}
                     </span>
                   )}
                 </motion.button>
@@ -426,6 +434,23 @@ export function AppointmentForm({
           />
         </div>
       </div>
+
+      {/* ---------- Payable summary (BDT — gateway compliance) ---------- */}
+      {autoChamber && (
+        <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-200">
+          <p className="text-sm font-bold text-emerald-950">
+            প্রদেয় ফি:{" "}
+            {formatBDT(patientType === "NEW" ? autoChamber.newFee : autoChamber.oldFee)}
+          </p>
+          <p className="mt-0.5 text-xs text-emerald-800/80">
+            {patientType === "NEW" ? "নতুন রোগী" : "পুরনো রোগী"} · {autoChamber.name}
+            {autoTiming ? ` · 🕒 ${autoTiming}` : ""} · সকল মূল্য বাংলাদেশি টাকায় (BDT)
+          </p>
+        </div>
+      )}
+
+      {/* ---------- Checkout gate: hyperlinked policies + checkbox ---------- */}
+      <PolicyAcceptance checked={accepted} onChange={setAccepted} accent={isBlue ? "blue" : "emerald"} />
 
       {error && <p className="mt-3 text-sm font-semibold text-red-600">{error}</p>}
 

@@ -48,19 +48,19 @@ export function HomeHeader() {
         </Link>
         <nav className="flex items-center gap-2 sm:gap-3">
           <Link
-            href="#areas"
+            href="/#areas"
             className="hidden rounded-xl px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-amber-50 hover:text-emerald-900 lg:block"
           >
             এলাকা খুঁজুন
           </Link>
           <Link
-            href="#how"
+            href="/#how"
             className="hidden rounded-xl px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-amber-50 hover:text-emerald-900 lg:block"
           >
             কীভাবে কাজ করে
           </Link>
           <Link
-            href="#software"
+            href="/#software"
             className="hidden rounded-xl px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-amber-50 hover:text-emerald-900 lg:block"
           >
             ফ্রি সফটওয়্যার

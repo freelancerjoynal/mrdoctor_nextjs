@@ -42,6 +42,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${apex}/`, lastModified: now, changeFrequency: "daily", priority: 1 },
+    { url: `${apex}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${apex}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${apex}/terms`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${apex}/privacy`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${apex}/refund`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${apex}/delivery`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${apex}/apply`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${apex}/apply/doctor`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${apex}/apply/hospital`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },

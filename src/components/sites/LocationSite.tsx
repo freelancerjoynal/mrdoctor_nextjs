@@ -892,6 +892,12 @@ export function LocationSite({
             <p className="text-sm font-black uppercase tracking-wider text-slate-400">লিংক</p>
             <ul className="mt-3 space-y-2">
               <li><a href={buildApexUrl("/", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🏠 মূল সাইট</a></li>
+              <li><a href={buildApexUrl("/about", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">ℹ️ আমাদের সম্পর্কে</a></li>
+              <li><a href={buildApexUrl("/contact", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">📍 ঠিকানা ও যোগাযোগ</a></li>
+              <li><a href={buildApexUrl("/terms", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">📜 শর্তাবলী</a></li>
+              <li><a href={buildApexUrl("/privacy", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🔒 প্রাইভেসি পলিসি</a></li>
+              <li><a href={buildApexUrl("/refund", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">💸 রিটার্ন ও রিফান্ড</a></li>
+              <li><a href={buildApexUrl("/delivery", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🚚 ডেলিভারি পলিসি</a></li>
               <li><a href={buildApexUrl("/apply/doctor", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🩺 ডাক্তার হিসেবে যোগ দিন</a></li>
               <li><a href={buildApexUrl("/apply/hospital", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🏥 হাসপাতাল হিসেবে যোগ দিন</a></li>
               <li><a href={buildApexUrl("/login", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🔑 লগইন</a></li>

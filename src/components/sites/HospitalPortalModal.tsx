@@ -160,10 +160,10 @@ export function HospitalPortalModal({
                         ) : null}
                         <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black">
                           <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-800 ring-1 ring-sky-100">
-                            নতুন ৳{c.newPatientFee ?? 0}
+                            নতুন ৳{c.newPatientFee ?? 0} (BDT)
                           </span>
                           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                            পুরনো ৳{c.oldPatientFee ?? 0}
+                            পুরনো ৳{c.oldPatientFee ?? 0} (BDT)
                           </span>
                         </div>
                       </li>

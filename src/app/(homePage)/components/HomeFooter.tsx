@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { COMPANY } from "@/content/company";
 
 const COLS = [
   {
@@ -19,19 +20,37 @@ const COLS = [
       { label: "হাসপাতাল হিসেবে আবেদন", href: "/apply/hospital" },
     ],
   },
+  {
+    title: "আইনি তথ্য",
+    links: [
+      { label: "আমাদের সম্পর্কে", href: "/about" },
+      { label: "যোগাযোগ ও ঠিকানা", href: "/contact" },
+      { label: "শর্তাবলী (T&C)", href: "/terms" },
+      { label: "প্রাইভেসি পলিসি", href: "/privacy" },
+      { label: "রিটার্ন ও রিফান্ড", href: "/refund" },
+      { label: "ডেলিভারি পলিসি", href: "/delivery" },
+    ],
+  },
 ];
 
 export function HomeFooter() {
   return (
     <footer className="border-t border-amber-200/70 bg-white">
       <div className="h-0.5 bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-300" />
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-4">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-5">
         <div className="md:col-span-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-main.png" alt="মিস্টার ডাক্তার" className="h-12 w-auto object-contain" />
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
             রোগীকে ডাক্তারের কাছে পৌঁছে দিই মুহূর্তেই। দেরি নয়, অপেক্ষা নয় —
             সময়মতো ভিজিট ও সেবা, সারা বাংলাদেশে।
+          </p>
+          <p className="mt-3 max-w-sm text-xs leading-relaxed text-slate-500">
+            📍 {COMPANY.address}
+            <br />📞 {COMPANY.phone} · ✉️ {COMPANY.email}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            ট্রেড লাইসেন্স নং: <span className="font-bold">{COMPANY.tradeLicense}</span>
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {["✓ যাচাইকৃত ডাক্তার", "⏱ সময়মতো সিরিয়াল", "💬 হোয়াটসঅ্যাপ সাপোর্ট"].map((t) => (
