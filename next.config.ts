@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Standalone output for minimal Docker image (Dockerfile copies .next/standalone)
+  output: "standalone",
   /* Apex first: mrdoctor.com.bd. Local dev ONLY via *.localhost.
      Tunnel URLs (trycloudflare.com) allowed so Cloudflare Tunnel testing works. */
   allowedDevOrigins: [
