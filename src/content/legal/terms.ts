@@ -4,7 +4,7 @@
  * Ekhane text change korlei website e update hobe.
  */
 
-export const TERMS_UPDATED = "২০২৬-০৯-২২";
+export const TERMS_UPDATED = "২০২৬-০৯-২৩";
 
 export const TERMS_BN: { heading: string; body: string[] }[] = [
   {
@@ -22,33 +22,41 @@ export const TERMS_BN: { heading: string; body: string[] }[] = [
     ],
   },
   {
-    heading: "৩. রোগীর দায়িত্ব",
+    heading: "৩. ডাক্তার ও হাসপাতালের দায়িত্ব এবং ম্যানেজমেন্ট",
+    body: [
+      "ডাক্তার এবং হাসপাতাল কর্তৃপক্ষ শুধুমাত্র **আজকের পেন্ডিং অ্যাপয়েন্টমেন্টগুলো** গ্রহণ ও পরিচালনা করতে পারবেন।",
+      "তাদের নিজ নিজ চেম্বার বা হাসপাতালের অভ্যন্তরীণ লোকাল ম্যানেজমেন্ট ও ব্যবস্থাপনা তাদেরকে সম্পূর্ণ নিজ দায়িত্বে পালন করতে হবে।",
+      "মিস্টার ডাক্তার শুধুমাত্র অনলাইনে বুকিংয়ের ক্ষেত্রে হিসাব-নিকাশ এবং অন্যান্য প্রাসঙ্গিক বিষয়গুলোর ওপর মনিটরিং করে থাকে; বাকি অভ্যন্তরীণ অপারেশন ও ব্যবস্থাপনা সম্পূর্ণ সংশ্লিষ্ট কর্তৃপক্ষ নিজেদের দায়িত্বে পরিচালনা করবে।",
+    ],
+  },
+  {
+    heading: "৪. রোগীর দায়িত্ব",
     body: [
       "সঠিক নাম, মোবাইল নম্বর ও সমস্যার বিবরণ দিতে হবে। ভুল তথ্যের কারণে সিরিয়াল মিস হলে কর্তৃপক্ষ দায়ী থাকবে না।",
       "নির্ধারিত সময়ের কমপক্ষে ১৫–৩০ মিনিট আগে চেম্বারে উপস্থিত থাকুন এবং কনফার্মেশন SMS/মেসেজটি সঙ্গে রাখুন।",
     ],
   },
   {
-    heading: "৪. ডাক্তার/চেম্বারের পরিবর্তন",
+    heading: "৫. ডাক্তার/চেম্বারের পরিবর্তন",
     body: [
       "অনিবার্য কারণে (জরুরি অপারেশন, অসুস্থতা, প্রাকৃতিক দুর্যোগ) ডাক্তারের সময় পরিবর্তন বা বাতিল হতে পারে। এমন হলে রোগীকে আগেই জানানো হবে এবং রিশিডিউল বা রিফান্ডের অপশন দেওয়া হবে (দেখুন /refund)।",
     ],
   },
   {
-    heading: "৫. চিকিৎসা সংক্রান্ত দাবিত্যাগ",
+    heading: "৬. চিকিৎসা সংক্রান্ত দাবিত্যাগ",
     body: [
       "মিস্টার ডাক্তার নিজে চিকিৎসা দেয় না — চিকিৎসা দেন সংশ্লিষ্ট নিবন্ধিত ডাক্তার। রোগ নির্ণয়, প্রেসক্রিপশন ও চিকিৎসার সম্পূর্ণ দায়িত্ব সেই ডাক্তারের।",
       "জরুরি অবস্থায় (শ্বাসকষ্ট, বুকে ব্যথা, দুর্ঘটনা) অনলাইন সিরিয়ালের অপেক্ষা না করে নিকটস্থ জরুরি বিভাগে যান।",
     ],
   },
   {
-    heading: "৬. অপব্যবহার",
+    heading: "৭. অপব্যবহার",
     body: [
       "ভুয়া বুকিং, ভুয়া রিভিউ, বা সিস্টেমের অপব্যবহার প্রমাণিত হলে অ্যাকাউন্ট/সিরিয়াল বাতিল করা হতে পারে।",
     ],
   },
   {
-    heading: "৭. যোগাযোগ",
+    heading: "৮. যোগাযোগ",
     body: [
       "শর্তাবলী নিয়ে প্রশ্ন থাকলে /contact পেজের ঠিকানা ও ফোনে যোগাযোগ করুন।",
     ],
@@ -70,19 +78,25 @@ export const TERMS_EN: { heading: string; body: string[] }[] = [
     ],
   },
   {
-    heading: "3. Patient responsibilities",
+    heading: "3. Doctor and Hospital Management",
+    body: [
+      "Doctors and hospitals can only accept and process today's pending appointments. They must manage their internal local administration independently and at their own responsibility. MrDoctor solely monitors online bookings and accounting, while all other operational matters are handled by the respective authorities.",
+    ],
+  },
+  {
+    heading: "4. Patient responsibilities",
     body: [
       "Provide accurate name, mobile number and problem description. Arrive 15–30 minutes early with your confirmation message.",
     ],
   },
   {
-    heading: "4. Rescheduling",
+    heading: "5. Rescheduling",
     body: [
       "Schedules may change for emergencies. Affected patients are offered rescheduling or a refund (see /refund).",
     ],
   },
   {
-    heading: "5. Medical disclaimer",
+    heading: "6. Medical disclaimer",
     body: [
       "MrDoctor does not provide treatment; the registered doctor does. In emergencies, go to the nearest emergency department immediately.",
     ],
