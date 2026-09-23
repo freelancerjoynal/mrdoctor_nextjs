@@ -7,6 +7,14 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 // Refresh a bit before real expiry so slow requests don't die mid-flight.
 const EXP_SKEW_MS = 30_000;
 
+// যে সাবডোমেইনগুলো ওয়াইল্ডকার্ডের ভেতরে যাবে না (এখানে আপনার প্রয়োজনমতো নতুন সাবডোমেইন যোগ করতে পারবেন)
+const EXCLUDED_SUBDOMAINS = [
+  "api-backend",
+  "control-panel",
+  "api",
+  "coolify",
+];
+
 /** Edge-safe JWT role read (decode only — verification happens on the backend). */
 function getRoleClaim(token: string): string | null {
   try {
@@ -93,6 +101,7 @@ async function handle(req: NextRequest) {
   const isApexOnly = APEX_ONLY_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
+  
   if (
     !isApexOnly &&
     !pathname.startsWith("/api/") &&
@@ -102,7 +111,13 @@ async function handle(req: NextRequest) {
   ) {
     const host = req.headers.get("host") ?? "";
     const subdomain = getSubdomain(host);
+    
     if (subdomain) {
+      // যদি সাবডোমেইনটি এক্সক্লুডেড লিস্টে থাকে, তবে ওয়াইল্ডকার্ড রিরাইট বাইপাস করবে
+      if (EXCLUDED_SUBDOMAINS.includes(subdomain)) {
+        return NextResponse.next();
+      }
+
       const url = req.nextUrl.clone();
       if (LOCATION_SLUG_SET.has(subdomain)) {
         url.pathname = `/l/${subdomain}${pathname === "/" ? "" : pathname}`;
