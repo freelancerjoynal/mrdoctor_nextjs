@@ -226,6 +226,30 @@ const NOTICES: ReactNode[] = [
   "📞 জরুরি প্রয়োজনে ৯৯৯ নম্বরে কল করুন",
 ];
 
+/** Fullscreen toggle (TV mode): fills the display, browser chrome gone. */
+function useFullscreen(): { isFullscreen: boolean; toggle: () => void } {
+  // False on server/first paint — real state syncs after mount.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setIsFullscreen(document.fullscreenElement != null);
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  const toggle = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+      return;
+    }
+    const el = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => void;
+    };
+    if (el.requestFullscreen) void el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  }, []);
+  return { isFullscreen, toggle };
+}
+
 /** Scale-to-fit: identical layout on any screen size/ratio (letterboxed). */
 function useStageScale(): number {
   // First paint (server + hydration) is always 1 — real size applies after
@@ -315,6 +339,7 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
     !!breakActive,
   );
   const scale = useStageScale();
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
 
   // One-shot "doctor on break" call when a break appears (repeats stay off).
   const prevBreakKeyRef = useRef<string | null>(null);
@@ -407,6 +432,14 @@ export function LiveBoard({ username, initial }: { username: string; initial: Li
           🕒 {clock}
         </p>
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-sm font-black text-white shadow transition hover:bg-white/20 active:scale-95"
+            title={isFullscreen ? "ফুলস্ক্রিন থেকে বের হোন" : "পুরো স্ক্রিনে দেখুন"}
+          >
+            {isFullscreen ? "🗗 বের হোন" : "⛶ ফুলস্ক্রিন"}
+          </button>
           {!soundOn ? (
             <button
               type="button"

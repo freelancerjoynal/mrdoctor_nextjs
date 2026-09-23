@@ -812,6 +812,40 @@ export function AppointmentsPanel({ isDoctor: _isDoctor }: { isDoctor: boolean }
     void refreshLive();
   }, [refreshLive]);
 
+  // Presence heartbeat: while the live is ON, ping every 2 minutes so the
+  // server knows the doctor/staff tab is still attending. Closing the tab,
+  // logging out, or a dead session stops the pings and the server turns the
+  // live off automatically (finished day / stale / rollover).
+  useEffect(() => {
+    if (!live?.live) return;
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      apiFetch("/api/backend/api/users/serial-live/heartbeat", { method: "POST" })
+        .then(async (res) => {
+          const json = (await res.json().catch(() => null)) as {
+            data?: {
+              live: boolean;
+              current: { serial: number; patientName: string } | null;
+              missed?: LiveMissed[];
+              upcoming?: { serial: number; patientName: string }[];
+              waitingCount: number;
+              break?: LiveBreakState | null;
+            };
+          } | null;
+          if (res.ok && json?.data) {
+            setLive({ ...json.data, missed: json.data.missed ?? [], upcoming: json.data.upcoming ?? [], break: json.data.break ?? null });
+            if (!json.data.live) {
+              setActionMsg("⏹️ লাইভ স্বয়ংক্রিয়ভাবে বন্ধ হয়েছে (আজকের সেবা শেষ / সেশন শেষ)।");
+            }
+          }
+        })
+        .catch(() => {
+          /* next beat retries — expiry is server-side */
+        });
+    }, 120000);
+    return () => clearInterval(id);
+  }, [live?.live]);
+
   const toggleLive = async () => {
     if (liveBusy) return;
     setLiveBusy(true);

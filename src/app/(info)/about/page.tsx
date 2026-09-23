@@ -5,7 +5,7 @@ import { COMPANY } from "@/content/company";
 export const metadata: Metadata = {
   title: "আমাদের সম্পর্কে",
   description:
-    "মিস্টার ডাক্তার — আমরা রোগীকে সবার আগে ডাক্তারের কাছে পৌঁছে দিই। আমাদের গল্প, কাজের মডেল ও ঠিকানা।",
+    "মিস্টার ডাক্তার — আমরা রোগীকে সবার আগে ডাক্তারের কাছে পৌঁছে দিই। আমাদের গল্প, কাজের মডেল, দায়মুক্তি ও ঠিকানা।",
 };
 
 export default function AboutPage() {
@@ -37,6 +37,23 @@ export default function AboutPage() {
         </ol>
       </section>
 
+      <section className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 md:p-6">
+        <h2 className="text-lg font-black text-slate-900">
+          প্ল্যাটফর্মের ভূমিকা ও দায়মুক্তি (Disclaimer)
+        </h2>
+        <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-slate-700">
+          <p>
+            <strong>সেতুবন্ধন হিসেবে কার্যক্রম:</strong> মিস্টার ডাক্তার শুধুমাত্র একটি প্রযুক্তিগত প্ল্যাটফর্ম বা সেতুবন্ধন হিসেবে কাজ করে, যা রোগীকে সর্বোচ্চ ও আগাম সিরিয়াল পেতে এবং ডাক্তারকে তাদের রোগী পেতে সাহায্য করে। আমরা সরাসরি কোনো চিকিৎসা সেবা প্রদান করি না।
+          </p>
+          <p>
+            <strong>চিকিৎসা সংক্রান্ত দায়মুক্তি:</strong> চিকিৎসাগত সমাধান, রোগ নির্ণয়, প্রেসক্রিপশন কিংবা স্বাস্থ্যগত যেকোনো ঝুঁকি বা সেবার মানের জন্য মিস্টার ডাক্তার কোনোভাবেই দায়ী নয়। সমস্ত চিকিৎসা সংক্রান্ত বিষয়ের জন্য সরাসরি সংশ্লিষ্ট ডাক্তার ও হাসপাতাল কর্তৃপক্ষ দায়ী থাকবেন।
+          </p>
+          <p>
+            <strong>আর্থিক লেনদেন ও রিফান্ড নীতি:</strong> মাঝখানে শুধুমাত্র মিস্টার ডাক্তার টাকা নিয়ে নিরাপদে জমা রাখে, যাতে চিকিৎসা সম্পন্ন হওয়ার পর ডাক্তার তার ফি সঠিকভাবে পায়। তবে যদি কোনো কারণে ডাক্তার চিকিৎসা বা সেবা সম্পন্ন না করেন, শুধুমাত্র সেই প্রাপ্ত অর্থ ফেরত দিতে মিস্টার ডাক্তার বাধ্য থাকে।
+          </p>
+        </div>
+      </section>
+
       <details className="rounded-2xl border border-slate-200 bg-white p-5">
         <summary className="cursor-pointer text-sm font-black text-slate-800">
           English summary
@@ -47,6 +64,9 @@ export default function AboutPage() {
               {p}
             </p>
           ))}
+          <p className="text-sm leading-relaxed text-slate-600">
+            MrDoctor acts solely as a technological bridge connecting patients and doctors for serial management and escrow payment holding. We do not assume any responsibility or liability for medical treatment, clinical decisions, or health risks. Fees are held securely and disbursed to doctors upon successful service delivery, and refunds are only issued if the doctor fails to complete the service.
+          </p>
         </div>
       </details>
     </InfoShell>
