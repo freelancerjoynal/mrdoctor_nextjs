@@ -431,7 +431,7 @@ export function DoctorSite({
               <p className="text-xl font-bold leading-none">{toBn(experienceYears)}+</p>
               <p className="text-[11px] font-semibold">বছরের অভিজ্ঞতা</p>
             </div>
-            <div className="absolute -left-3 bottom-24 rounded-2xl bg-white px-4 py-2.5 text-emerald-950 shadow-xl">
+            <div className="absolute -right-3 bottom-24 rounded-2xl bg-white px-4 py-2.5 text-right text-emerald-950 shadow-xl">
               <p className="text-sm font-bold text-amber-500">★★★★★ {heroRating}</p>
               <p className="mt-0.5 text-[11px] font-medium text-slate-500">রোগীদের রেটিং</p>
             </div>
