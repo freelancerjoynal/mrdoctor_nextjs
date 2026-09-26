@@ -10,8 +10,10 @@ import {
   withExtra,
   JsonLd,
 } from "@/lib/seo";
+import { headers } from "next/headers";
 import { Hero } from "./components/Hero";
 import { LocationAutoRedirect } from "@/components/location/LocationAutoRedirect";
+import { AiDoctorFinder } from "@/components/location/AiDoctorFinder";
 import { AreaExplorer } from "./components/AreaExplorer";
 import { ConnectionTrio } from "./components/ConnectionTrio";
 import { HowItWorks } from "./components/HowItWorks";
@@ -48,6 +50,7 @@ export default async function HomePage() {
   );
   const seo = await fetchPageSeo("GLOBAL", "home");
   const schemas = withExtra(seo, [organizationJsonLd(), websiteJsonLd(), faqJsonLd(FAQS)]);
+  const host = (await headers()).get("host") ?? "";
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
@@ -60,6 +63,7 @@ export default async function HomePage() {
         {/* Location finding comes first — no doctor/hospital lists on the
             homepage, only area → thana portals. */}
         <AreaExplorer tree={tree} />
+        <AiDoctorFinder scope={{ type: "main" }} host={host} />
         <ConnectionTrio />
         <HowItWorks />
         <FreeSoftware />

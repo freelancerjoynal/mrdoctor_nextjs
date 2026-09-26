@@ -6,6 +6,7 @@ import { buildApexUrl, buildPortalUrl } from "@/lib/portal";
 import { doctorPortrait, type PublicBlog } from "@/lib/profile";
 import type { LocationMatch } from "@/lib/locationSlugs";
 import { thanasOfDistrict } from "@/lib/locationSlugs";
+import { AiDoctorFinder } from "@/components/location/AiDoctorFinder";
 import { AiSuggestBox } from "@/components/location/AiSuggestBox";
 import { DoctorCard, specialityIcon } from "@/components/sites/DoctorCard";
 import { DoctorPortalModal } from "@/components/sites/DoctorPortalModal";
@@ -392,6 +393,17 @@ export function LocationSite({
         areaTitle={title}
         host={host}
         onSelect={setSelected}
+      />
+
+      {/* ── District-level AI search: division fixed, thana + age mandatory ── */}
+      <AiDoctorFinder
+        scope={{
+          type: "district",
+          divisionBn: primary.divisionBn,
+          districtBn: primary.districtBn,
+          thanas: thanasOfDistrict(primary.districtBn).map((t) => t.thanaBn),
+        }}
+        host={host}
       />
 
       {/* ── Departments (tiles like the reference) ── */}
