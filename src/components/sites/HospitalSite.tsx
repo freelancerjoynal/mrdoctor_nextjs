@@ -6,6 +6,7 @@ import type { PublicBlog, PublicHospital, PublicReview } from "@/lib/profile";
 import { toBn } from "@/lib/bn";
 import { buildApexUrl } from "@/lib/portal";
 import { PortalHeader } from "@/components/sites/PortalHeader";
+import { PublicFooter } from "@/components/layout/PublicFooter";
 import { BlogSection } from "@/components/blog";
 import { ReviewSection } from "@/components/reviews";
 import { Reveal } from "@/components/motion";
@@ -315,48 +316,8 @@ export function HospitalSite({
         </Reveal>
       </section>
 
-      {/* ---------- Footer ---------- */}
-      <footer className="bg-slate-950 text-slate-300">
-        <div className="mx-auto max-w-6xl px-5 py-10">
-          <div className="flex flex-col items-center justify-between gap-4 text-center md:flex-row md:text-left">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-2xl font-bold text-white">
-                {hospital.name.trim()[0] || "হ"}
-              </span>
-              <div className="leading-tight">
-                <p className="font-bold text-white">{hospital.name}</p>
-                <p className="text-xs text-slate-400">সবার জন্য মানসম্মত স্বাস্থ্যসেবা</p>
-              </div>
-            </div>
-            <p className="text-sm text-slate-400">
-              © {toBn(new Date().getFullYear())} {hospital.name} · সর্বস্বত্ব সংরক্ষিত
-            </p>
-          </div>
-          <nav
-            aria-label="আইনি তথ্য"
-            className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-white/10 pt-5 text-xs md:justify-start"
-          >
-            {[
-              { href: "/about", label: "আমাদের সম্পর্কে" },
-              { href: "/contact", label: "ঠিকানা" },
-              { href: "/terms", label: "শর্তাবলী" },
-              { href: "/privacy", label: "প্রাইভেসি" },
-              { href: "/refund", label: "রিফান্ড" },
-              { href: "/delivery", label: "ডেলিভারি" },
-            ].map((l) => (
-              <a
-                key={l.href}
-                href={host ? buildApexUrl(l.href, host) : l.href}
-                target="_blank"
-                rel="noreferrer"
-                className="font-semibold text-slate-400 transition hover:text-white"
-              >
-                {l.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-      </footer>
+      {/* ---------- Universal public footer ---------- */}
+      <PublicFooter host={host} bottomSuffix={`${hospital.name} পোর্টাল · সবার জন্য সময়মতো চিকিৎসা।`} />
     </div>
   );
 }

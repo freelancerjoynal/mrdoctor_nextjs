@@ -6,8 +6,8 @@ import { buildApexUrl, buildPortalUrl } from "@/lib/portal";
 import { doctorPortrait, type PublicBlog } from "@/lib/profile";
 import type { LocationMatch } from "@/lib/locationSlugs";
 import { thanasOfDistrict } from "@/lib/locationSlugs";
+import { PublicFooter } from "@/components/layout/PublicFooter";
 import { AiDoctorFinder } from "@/components/location/AiDoctorFinder";
-import { AiSuggestBox } from "@/components/location/AiSuggestBox";
 import { DoctorCard, specialityIcon } from "@/components/sites/DoctorCard";
 import { DoctorPortalModal } from "@/components/sites/DoctorPortalModal";
 import { HospitalPortalModal } from "@/components/sites/HospitalPortalModal";
@@ -384,18 +384,7 @@ export function LocationSite({
         </div>
       </section>
 
-      {/* ── AI suggest: can't figure out the category? describe the problem ── */}
-      <AiSuggestBox
-        divisionBn={primary.divisionBn}
-        districtBn={primary.districtBn}
-        thanaBn={primary.thanaBn}
-        thanaNames={thanaNames}
-        areaTitle={title}
-        host={host}
-        onSelect={setSelected}
-      />
-
-      {/* ── District-level AI search: division fixed, thana + age mandatory ── */}
+      {/* ── AI smart search: thana + age mandatory ── */}
       <AiDoctorFinder
         scope={{
           type: "district",
@@ -751,61 +740,17 @@ export function LocationSite({
         </div>
       </section>
 
-      {/* ── Footer (MrDoctor brand) ── */}
-      <footer className="border-t border-slate-100 bg-slate-50 py-10">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 md:grid-cols-3">
-          <div className="md:col-span-2">
-            <p className="flex items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-main.png" alt="মিস্টার ডাক্তার" className="h-9 w-auto object-contain" />
-            </p>
-            <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
-              {title} — {areaLine} এলাকার যাচাইকৃত ডাক্তার, চেম্বার ও হাসপাতাল —
-              দেরি নয়, অপেক্ষা নয়, সময়মতো ভিজিট।
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {["✓ যাচাইকৃত ডাক্তার", "⏱ সময়মতো সিরিয়াল", "📍 প্রতিটি থানায় পোর্টাল"].map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-black uppercase tracking-wider text-slate-400">লিংক</p>
-            <ul className="mt-3 space-y-2">
-              <li><a href={buildApexUrl("/", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🏠 মূল সাইট</a></li>
-              <li><a href={buildApexUrl("/about", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">ℹ️ আমাদের সম্পর্কে</a></li>
-              <li><a href={buildApexUrl("/contact", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">📍 ঠিকানা ও যোগাযোগ</a></li>
-              <li><a href={buildApexUrl("/terms", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">📜 শর্তাবলী</a></li>
-              <li><a href={buildApexUrl("/privacy", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🔒 প্রাইভেসি পলিসি</a></li>
-              <li><a href={buildApexUrl("/refund", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">💸 রিটার্ন ও রিফান্ড</a></li>
-              <li><a href={buildApexUrl("/delivery", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🚚 ডেলিভারি পলিসি</a></li>
-              <li><a href={buildApexUrl("/apply/doctor", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🩺 ডাক্তার হিসেবে যোগ দিন</a></li>
-              <li><a href={buildApexUrl("/apply/hospital", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🏥 হাসপাতাল হিসেবে যোগ দিন</a></li>
-              <li><a href={buildApexUrl("/login", host)} className="text-sm font-bold text-slate-600 hover:text-teal-700">🔑 লগইন</a></li>
-              {portalSlug ? (
-                <li>
-                  <a
-                    href={buildApexUrl(`/admin/locations?slug=${encodeURIComponent(portalSlug)}`, host)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm font-bold text-slate-600 hover:text-teal-700"
-                  >
-                    ⚙️ পোর্টাল সাজান
-                  </a>
-                </li>
-              ) : null}
-            </ul>
-          </div>
-        </div>
-        <div className="mx-auto mt-8 max-w-6xl border-t border-slate-200 px-4 pt-5 text-center text-xs text-slate-400 sm:px-6">
-          © {new Date().getFullYear()} মিস্টার ডাক্তার — {title} পোর্টাল · সবার জন্য সময়মতো চিকিৎসা।
-        </div>
-      </footer>
+      {/* ── Universal public footer ── */}
+      <PublicFooter
+        host={host}
+        tagline={`${title} — ${areaLine} এলাকার যাচাইকৃত ডাক্তার, চেম্বার ও হাসপাতাল — দেরি নয়, অপেক্ষা নয়, সময়মতো ভিজিট।`}
+        bottomSuffix={`${title} পোর্টাল · সবার জন্য সময়মতো চিকিৎসা।`}
+        adminHref={
+          portalSlug
+            ? buildApexUrl(`/admin/locations?slug=${encodeURIComponent(portalSlug)}`, host)
+            : null
+        }
+      />
       {/* Detail popups (whole-card clicks); profile buttons → subdomains */}
       <DoctorPortalModal
         doctor={selected}
