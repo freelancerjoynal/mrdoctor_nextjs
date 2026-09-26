@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { apiFetch } from "@/lib/auth/apiFetch";
 import { CloudinaryImageInput } from "@/components/CloudinaryImageInput";
+import { DOCTOR_SPECIALITIES } from "@/lib/doctorSpecialities";
 
 type Tab = "doctor" | "hospital";
 
@@ -23,7 +24,15 @@ export function CreateAccountPanel() {
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
   const [picture, setPicture] = useState("");
+  const [doctorBusiness, setDoctorBusiness] = useState("");
+  const [doctorBanner, setDoctorBanner] = useState("");
+  const [hospitalBusiness, setHospitalBusiness] = useState("");
+  const [hospitalBanner, setHospitalBanner] = useState("");
+  const [specBn, setSpecBn] = useState("");
   const [formKey, setFormKey] = useState(0);
+  // English mirror auto-follows the selected Bangla speciality.
+  const specEn =
+    DOCTOR_SPECIALITIES.find((s) => s.specialty_bn === specBn)?.specialty_en ?? "";
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -59,6 +68,8 @@ export function CreateAccountPanel() {
             whatsappAccessToken: get("whatsappAccessToken"),
             templateName: get("templateName"),
             profilePicture: picture.trim() || undefined,
+            businessCardImage: doctorBusiness.trim() || undefined,
+            bannerCardImage: doctorBanner.trim() || undefined,
             gender: get("gender"),
             religion: get("religion"),
             startedYear: get("startedYear"),
@@ -72,6 +83,8 @@ export function CreateAccountPanel() {
             phone: get("phone"),
             slug: get("slug"),
             templateName: get("templateName"),
+            businessCardImage: hospitalBusiness.trim() || undefined,
+            bannerCardImage: hospitalBanner.trim() || undefined,
             division: get("division"),
             division_en: get("division_en"),
             district: get("district"),
@@ -97,6 +110,11 @@ export function CreateAccountPanel() {
       const pw = data?.data?.tempPassword ? ` অস্থায়ী পাসওয়ার্ড: ${data.data.tempPassword}` : "";
       setOk(`✅ ${data?.message ?? "অ্যাকাউন্ট তৈরি হয়েছে।"}${pw}`);
       setPicture("");
+      setDoctorBusiness("");
+      setDoctorBanner("");
+      setHospitalBusiness("");
+      setHospitalBanner("");
+      setSpecBn("");
       setFormKey((k) => k + 1);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "তৈরি করা যায়নি।");
@@ -121,6 +139,7 @@ export function CreateAccountPanel() {
               setTab(t);
               setError("");
               setOk("");
+              setSpecBn("");
             }}
             className={`rounded-lg px-3 py-2 text-xs font-black transition ${
               tab === t ? "bg-white text-slate-900 shadow" : "text-slate-500 hover:text-slate-700"
@@ -145,8 +164,15 @@ export function CreateAccountPanel() {
             <label className={labelCls}>Name (English)<input name="name_en" placeholder="Dr. Rahim Uddin" className={inputCls} /></label>
             <label className={labelCls}>ডিগ্রি*<input name="degree" required placeholder="MBBS, FCPS" className={inputCls} /></label>
             <label className={labelCls}>Degree (English)<input name="degree_en" placeholder="MBBS, FCPS" className={inputCls} /></label>
-            <label className={labelCls}>বিশেষজ্ঞতা*<input name="speciality" required placeholder="মেডিসিন বিশেষজ্ঞ" className={inputCls} /></label>
-            <label className={labelCls}>Speciality (English)<input name="speciality_en" placeholder="Medicine Specialist" className={inputCls} /></label>
+            <label className={labelCls}>বিশেষজ্ঞতা*
+              <select name="speciality" required value={specBn} onChange={(e) => setSpecBn(e.target.value)} className={inputCls}>
+                <option value="">— তালিকা থেকে বেছে নিন —</option>
+                {DOCTOR_SPECIALITIES.map((s) => (
+                  <option key={s.specialty_en} value={s.specialty_bn}>{s.specialty_bn}</option>
+                ))}
+              </select>
+            </label>
+            <label className={labelCls}>Speciality (English)<input name="speciality_en" value={specEn} readOnly placeholder="স্বয়ংক্রিয়" className={`${inputCls} cursor-not-allowed bg-slate-100`} /></label>
             <label className={labelCls}>BMDC নম্বর<input name="bmdcNumber" placeholder="A-12345" className={inputCls} /></label>
             <label className={labelCls}>ট্যাগলাইন (বাংলা)<input name="tagline" placeholder="সংক্ষিপ্ত পরিচিতি" className={inputCls} /></label>
             <label className={`${labelCls} sm:col-span-2`}>Tagline (English)<input name="tagline_en" placeholder="Short intro" className={inputCls} /></label>
@@ -166,6 +192,24 @@ export function CreateAccountPanel() {
                 value={picture}
                 onChange={setPicture}
                 folder="profile-pictures"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <CloudinaryImageInput
+                label="💬 বিজনেস কার্ড (WhatsApp)"
+                value={doctorBusiness}
+                onChange={setDoctorBusiness}
+                folder="whatsapp-cards"
+                previewSize="h-20 w-32"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <CloudinaryImageInput
+                label="🖼️ ব্যানার কার্ড (WhatsApp)"
+                value={doctorBanner}
+                onChange={setDoctorBanner}
+                folder="whatsapp-cards"
+                previewSize="h-20 w-32"
               />
             </div>
             <label className={labelCls}>লিঙ্গ
@@ -206,6 +250,25 @@ export function CreateAccountPanel() {
             <label className={labelCls}>Thana (English)<input name="thana_en" placeholder="Nilphamari Sadar" className={inputCls} /></label>
             <label className={labelCls}>ঠিকানা (বাংলা)<input name="addressLine" placeholder="সদর, নীলফামারী" className={inputCls} /></label>
             <label className={labelCls}>Address (English)<input name="addressLine_en" placeholder="Sadar, Nilphamari" className={inputCls} /></label>
+            <p className={sectionCls}>💬 WhatsApp কার্ড</p>
+            <div className="sm:col-span-2">
+              <CloudinaryImageInput
+                label="💬 বিজনেস কার্ড (WhatsApp)"
+                value={hospitalBusiness}
+                onChange={setHospitalBusiness}
+                folder="whatsapp-cards"
+                previewSize="h-20 w-32"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <CloudinaryImageInput
+                label="🖼️ ব্যানার কার্ড (WhatsApp)"
+                value={hospitalBanner}
+                onChange={setHospitalBanner}
+                folder="whatsapp-cards"
+                previewSize="h-20 w-32"
+              />
+            </div>
           </>
         )}
         <div className="sm:col-span-2">

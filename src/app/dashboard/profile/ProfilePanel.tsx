@@ -6,7 +6,8 @@ import { apiFetch } from "@/lib/auth/apiFetch";
 import { useAppDispatch } from "@/lib/store/hooks";
 import { patchLocalName } from "@/lib/store/profileSlice";
 import { CloudinaryImageInput } from "@/components/CloudinaryImageInput";
-import type { DoctorProfile } from "@/lib/auth/profiles";
+import { DOCTOR_SPECIALITIES } from "@/lib/doctorSpecialities";
+import type { DoctorProfile, HospitalProfile } from "@/lib/auth/profiles";
 
 async function profileApi(body: Record<string, unknown>) {
   const res = await apiFetch("/api/backend/api/users/profile", {
@@ -28,12 +29,14 @@ export function ProfilePanel({
   initialName,
   role,
   doctorProfile,
+  hospitalProfile,
   initialProfilePicture,
 }: {
   initialEmail: string;
   initialName: string;
   role?: string;
   doctorProfile?: DoctorProfile | null;
+  hospitalProfile?: HospitalProfile | null;
   initialProfilePicture?: string | null;
 }) {
   const router = useRouter();
@@ -132,6 +135,11 @@ export function ProfilePanel({
         <DoctorEditSection initial={doctorProfile ?? null} inputCls={inputCls} />
       )}
 
+      {/* Hospital WhatsApp cards — business + banner */}
+      {role === "HOSPITAL" && (
+        <HospitalCardsSection initial={hospitalProfile ?? null} />
+      )}
+
       {/* Staff profile photo — upload like the doctor (non-doctor roles) */}
       {role !== "DOCTOR" && (
         <StaffPhotoSection initial={initialProfilePicture ?? null} />
@@ -218,6 +226,12 @@ function str(v: string | null | undefined): string {
   return v ?? "";
 }
 
+/** Select value for the speciality dropdown (legacy free-text kept visible). */
+function specSelectValue(current: string): string {
+  if (!current) return "";
+  return DOCTOR_SPECIALITIES.some((s) => s.specialty_bn === current) ? current : "__custom__";
+}
+
 /** Staff profile photo — same Cloudinary upload as the doctor's picture. */
 function StaffPhotoSection({ initial }: { initial: string | null }) {
   const router = useRouter();
@@ -289,6 +303,8 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
     whatsappAccessToken: str(initial?.whatsappAccessToken),
     templateName: str(initial?.templateName) || "template_a",
     profilePicture: str(initial?.profilePicture),
+    businessCardImage: str(initial?.businessCardImage),
+    bannerCardImage: str(initial?.bannerCardImage),
     gender: (initial?.gender ?? "") as string,
     religion: str(initial?.religion) || "Muslim",
     startedYear: initial?.startedYear != null ? String(initial.startedYear) : "",
@@ -331,6 +347,8 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
         whatsappAccessToken: form.whatsappAccessToken.trim(),
         templateName: form.templateName.trim() || "template_a",
         profilePicture: form.profilePicture.trim(),
+        businessCardImage: form.businessCardImage.trim(),
+        bannerCardImage: form.bannerCardImage.trim(),
         gender: form.gender.trim(),
         religion: form.religion.trim(),
         startedYear: form.startedYear.trim(),
@@ -372,7 +390,34 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
           {field("Degree (English)", "degree_en", "MBBS, ...")}
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {field("বিশেষত্ব *", "speciality", "মেডিসিন বিশেষজ্ঞ")}
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold text-slate-600">বিশেষত্ব * (তালিকা থেকে বেছে নিন)</span>
+            <select
+              value={specSelectValue(form.speciality)}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "__custom__" || !v) return;
+                const hit = DOCTOR_SPECIALITIES.find((s) => s.specialty_bn === v);
+                setForm((f) => ({
+                  ...f,
+                  speciality: v,
+                  speciality_en: hit?.specialty_en ?? f.speciality_en,
+                }));
+              }}
+              className={inputCls}
+            >
+              <option value="">— তালিকা থেকে বেছে নিন —</option>
+              {form.speciality &&
+              !DOCTOR_SPECIALITIES.some((s) => s.specialty_bn === form.speciality) ? (
+                <option value="__custom__">{form.speciality} (আগের মান)</option>
+              ) : null}
+              {DOCTOR_SPECIALITIES.map((s) => (
+                <option key={s.specialty_en} value={s.specialty_bn}>
+                  {s.specialty_bn}
+                </option>
+              ))}
+            </select>
+          </label>
           {field("Speciality (English)", "speciality_en", "Medicine Specialist")}
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -416,6 +461,20 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
           onChange={(url) => setForm((f) => ({ ...f, profilePicture: url }))}
           folder="profile-pictures"
         />
+        <CloudinaryImageInput
+          label="বিজনেস কার্ড (WhatsApp — আপলোড করলেই URL বসে যাবে)"
+          value={form.businessCardImage}
+          onChange={(url) => setForm((f) => ({ ...f, businessCardImage: url }))}
+          folder="whatsapp-cards"
+          previewSize="h-20 w-32"
+        />
+        <CloudinaryImageInput
+          label="ব্যানার কার্ড (WhatsApp — আপলোড করলেই URL বসে যাবে)"
+          value={form.bannerCardImage}
+          onChange={(url) => setForm((f) => ({ ...f, bannerCardImage: url }))}
+          folder="whatsapp-cards"
+          previewSize="h-20 w-32"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <label className="block">
             <span className="mb-1 block text-sm font-bold text-slate-600">লিঙ্গ</span>
@@ -440,6 +499,72 @@ function DoctorEditSection({ initial, inputCls }: { initial: DoctorProfile | nul
           className="rounded-xl bg-emerald-600 px-6 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
         >
           {saving ? "সেভ হচ্ছে…" : "💾 ডাক্তার প্রোফাইল সেভ করুন"}
+        </button>
+      </form>
+      {msg.err && <p className="mt-3 text-sm font-bold text-red-600">{msg.err}</p>}
+      {msg.ok && <p className="mt-3 text-sm font-bold text-emerald-700">{msg.ok}</p>}
+    </section>
+  );
+}
+
+/** Hospital WhatsApp cards — business + banner (HOSPITAL role self-service). */
+function HospitalCardsSection({ initial }: { initial: HospitalProfile | null }) {
+  const router = useRouter();
+  const [businessCardImage, setBusinessCardImage] = useState(str(initial?.businessCardImage));
+  const [bannerCardImage, setBannerCardImage] = useState(str(initial?.bannerCardImage));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ ok: "", err: "" });
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    setMsg({ ok: "", err: "" });
+    setSaving(true);
+    try {
+      await profileApi({
+        hospital: {
+          businessCardImage: businessCardImage.trim(),
+          bannerCardImage: bannerCardImage.trim(),
+        },
+      });
+      setBusinessCardImage(businessCardImage.trim());
+      setBannerCardImage(bannerCardImage.trim());
+      setMsg({ ok: "WhatsApp কার্ড সফলভাবে আপডেট হয়েছে।", err: "" });
+      router.refresh();
+    } catch (err: unknown) {
+      setMsg({ ok: "", err: err instanceof Error ? err.message : "আপডেট ব্যর্থ হয়েছে।" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+      <p className="text-lg font-black text-slate-900">💬 WhatsApp কার্ড</p>
+      <p className="mt-1 text-sm text-slate-500">
+        হাসপাতালের বিজনেস কার্ড ও ব্যানার কার্ড — চ্যাটবটে রোগীকে পাঠানো হবে।
+      </p>
+      <form onSubmit={onSubmit} className="mt-4 space-y-3">
+        <CloudinaryImageInput
+          label="বিজনেস কার্ড (আপলোড করলেই URL বসে যাবে)"
+          value={businessCardImage}
+          onChange={setBusinessCardImage}
+          folder="whatsapp-cards"
+          previewSize="h-20 w-32"
+        />
+        <CloudinaryImageInput
+          label="ব্যানার কার্ড (আপলোড করলেই URL বসে যাবে)"
+          value={bannerCardImage}
+          onChange={setBannerCardImage}
+          folder="whatsapp-cards"
+          previewSize="h-20 w-32"
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl bg-emerald-600 px-6 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {saving ? "সেভ হচ্ছে…" : "💾 কার্ড সেভ করুন"}
         </button>
       </form>
       {msg.err && <p className="mt-3 text-sm font-bold text-red-600">{msg.err}</p>}

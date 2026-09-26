@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "tunnel": "cloudflared tunnel run mrdoctor-live"
+    "tunnel": "cloudflared tunnel run mrdoctor-backend"
   },
   "dependencies": {
     "@cloudinary/react": "^1.14.4",

@@ -12,6 +12,8 @@ export interface DoctorProfile {
   email?: string | null;
   /** DB profile picture + tagline (backend returns the full doctor row). */
   profilePicture?: string | null;
+  businessCardImage?: string | null;
+  bannerCardImage?: string | null;
   tagline?: string | null;
   tagline_en?: string | null;
   bio?: string | null;
@@ -33,6 +35,8 @@ export interface HospitalProfile {
   address?: string | null;
   /** Public portal subdomain (backend returns the full hospital row). */
   slug?: string | null;
+  businessCardImage?: string | null;
+  bannerCardImage?: string | null;
 }
 
 export interface SuperAdminProfile {
